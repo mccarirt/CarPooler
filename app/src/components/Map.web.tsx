@@ -23,8 +23,6 @@ function injectStyles() {
     .cc-pin.done{background:${colors.ink};color:#fff;opacity:.55}
     .cc-car{width:28px;height:28px;border-radius:14px;background:${colors.accent};border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);box-sizing:border-box}
     .leaflet-tile-pane{filter:saturate(.65) sepia(.18) brightness(1.03)}
-    .leaflet-marker-icon.cc-car-wrap{transition:transform 1.1s linear}
-    .leaflet-zoom-anim .leaflet-marker-icon.cc-car-wrap{transition:none}
   `;
   document.head.appendChild(style);
 }
@@ -36,6 +34,8 @@ export default function Map({ stops, route, car }: MapProps) {
   const carMarker = useRef<L.Marker | null>(null);
   const fitted = useRef('');
   const hasStops = useRef(false);
+  const zooming = useRef(false);
+  const glide = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     injectStyles();
@@ -44,6 +44,14 @@ export default function Map({ stops, route, car }: MapProps) {
     L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(m);
     layer.current = L.layerGroup().addTo(m);
     map.current = m;
+    // While the map is being zoomed, the car must jump with it rather than glide.
+    m.on('zoomstart', () => {
+      zooming.current = true;
+      clearTimeout(glide.current);
+      const icon = carMarker.current?.getElement();
+      if (icon) icon.style.transition = '';
+    });
+    m.on('zoomend', () => (zooming.current = false));
     return () => {
       m.remove();
       map.current = null;
@@ -92,6 +100,14 @@ export default function Map({ stops, route, car }: MapProps) {
         title: 'Driver',
       }).addTo(m);
     } else {
+      // Glide to the new GPS point, but only for this move. A standing transition also animates the
+      // re-positioning Leaflet does after a pinch-zoom, which made the car slide across the map.
+      const icon = carMarker.current.getElement();
+      if (icon && !zooming.current) {
+        icon.style.transition = 'transform 1.1s linear';
+        clearTimeout(glide.current);
+        glide.current = setTimeout(() => (icon.style.transition = ''), 1200);
+      }
       carMarker.current.setLatLng([car.lat, car.lng]);
     }
     // Nothing pinned to frame the view? Follow the car so it is always on screen.

@@ -46,6 +46,7 @@ export default function RideDay() {
   const [fixError, setFixError] = useState<string | null>(null);
   const [farArmed, setFarArmed] = useState(false); // first tap when far from the stop only arms the button
   const sheetRef = useRef<ScrollView>(null);
+  const [bigMap, setBigMap] = useState(false); // fold the sheet away so the map fills the screen
   const [, tick] = useState(0);
 
   // ---- route (only when every stop has been pinned) ----
@@ -371,8 +372,16 @@ export default function RideDay() {
           alignItems: 'center',
         }}
       >
-        <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, marginTop: space.sm }} />
-        <ScrollView ref={sheetRef} style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: space.md, paddingBottom: space.md }} showsVerticalScrollIndicator={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={bigMap ? 'Show ride details' : 'Show a bigger map'}
+          onPress={() => setBigMap((v) => !v)}
+          style={{ width: '100%', minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 4 }}
+        >
+          <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line }} />
+          <Small style={{ color: colors.accent, fontWeight: '700' }}>{bigMap ? 'Show details' : 'Bigger map'}</Small>
+        </Pressable>
+        {!bigMap && <ScrollView ref={sheetRef} style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: space.md, paddingBottom: space.md }} showsVerticalScrollIndicator={false}>
           <View style={{ width: '100%', maxWidth: 560, gap: space.md, paddingTop: space.md }}>
             {/* hero */}
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md }}>
@@ -516,7 +525,7 @@ export default function RideDay() {
               </View>
             )}
           </View>
-        </ScrollView>
+        </ScrollView>}
 
         {/* ---------- one evolving primary action ---------- */}
         <View style={{ width: '100%', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.md, borderTopWidth: 1, borderTopColor: colors.line }}>
