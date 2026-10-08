@@ -9,13 +9,13 @@ import { useCircle } from '@/lib/useCircle';
 import {
   addDays, driverFor, effectiveWindow, fmtTime, isoWeekday, mondayOf, overrideKey, parseTime, prettyDate, runsOn, shortDate, toISO,
 } from '@/lib/schedule';
-import { Avatar, Body, Button, Card, Centered, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
+import { Avatar, Body, Button, Card, Centered, Chip, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
 export default function Agenda() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { uid, profile } = useSession();
-  const { circle, legs, overrides, days, runs, swaps, rotation, nameOf } = useCircle(id);
+  const { circle, members, legs, overrides, days, runs, swaps, rotation, nameOf } = useCircle(id);
   const today = toISO(new Date());
   const [weekStart, setWeekStart] = useState(mondayOf(today));
   const [editing, setEditing] = useState<string | null>(null); // `${legId}_${date}` or `day_${date}`
@@ -160,7 +160,18 @@ export default function Agenda() {
                       <Small style={{ color: colors.accent, fontWeight: '700' }}>{runs[overrideKey(legId, date)]?.status === 'started' ? 'Watch live' : 'Open ride'}</Small>
                     </Pressable>
                   )}
-                  {editing === key && <LegDayEditor circleId={id} keyId={key} start={leg.windowStart} end={leg.windowEnd} override={o} onDone={() => setEditing(null)} />}
+                  {editing === key && (
+                    <LegDayEditor
+                      circleId={id}
+                      keyId={key}
+                      start={leg.windowStart}
+                      end={leg.windowEnd}
+                      override={o}
+                      members={members}
+                      normalDriver={driverFor(legId, leg, date, rotation, { ...overrides, [key]: { ...o, driverUid: undefined } }, days)}
+                      onDone={() => setEditing(null)}
+                    />
+                  )}
                 </View>
               );
             })}
@@ -210,13 +221,14 @@ function DayEditor({ circleId, date, initialNote, skipped, onDone }: { circleId:
 }
 
 function LegDayEditor({
-  circleId, keyId, start, end, override, onDone,
+  circleId, keyId, start, end, override, members, normalDriver, onDone,
 }: {
-  circleId: string; keyId: string; start: string; end: string; override?: { skip?: boolean; windowStart?: string; windowEnd?: string; note?: string; driverUid?: string }; onDone: () => void;
+  circleId: string; keyId: string; start: string; end: string; override?: { skip?: boolean; windowStart?: string; windowEnd?: string; note?: string; driverUid?: string }; members: { uid: string; name: string }[]; normalDriver: string | null; onDone: () => void;
 }) {
   const [s, setS] = useState(fmtTime(override?.windowStart ?? start));
   const [e, setE] = useState(override?.windowEnd ?? end ? fmtTime(override?.windowEnd ?? end) : '');
   const [note, setNote] = useState(override?.note ?? '');
+  const [driver, setDriver] = useState<string | null>(override?.driverUid ?? null); // null = the normal driver
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -227,7 +239,7 @@ function LegDayEditor({
     setBusy(true);
     try {
       await saveOverride(circleId, keyId, {
-        ...(override?.driverUid ? { driverUid: override.driverUid } : {}),
+        ...(driver ? { driverUid: driver } : {}),
         ...(ps !== start ? { windowStart: ps } : {}),
         ...(pe && pe !== end ? { windowEnd: pe } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
@@ -244,6 +256,20 @@ function LegDayEditor({
     <Card style={{ gap: space.md }}>
       <Field label="Starts around" value={s} onChangeText={setS} />
       <Field label="Done by" value={e} onChangeText={setE} />
+      <View style={{ gap: space.sm }}>
+        <Body style={{ fontWeight: '600' }}>Who drives this day</Body>
+        <Small>Changes only this day. The normal driver goes back to normal the next day.</Small>
+        <Wrap>
+          {members.map((m) => (
+            <Chip
+              key={m.uid}
+              label={m.name}
+              on={(driver ?? normalDriver) === m.uid}
+              onPress={() => setDriver(m.uid === normalDriver ? null : m.uid)}
+            />
+          ))}
+        </Wrap>
+      </View>
       <Field label="Note for this day" value={note} onChangeText={setNote} placeholder="Early dismissal at 1:00" />
       <ErrorNote message={error} />
       <Button label="Save for this day" loading={busy} onPress={() => save()} />
