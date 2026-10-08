@@ -35,11 +35,11 @@ type Item = {
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
 type UpdateItem = { circleName: string; b: Broadcast };
-type KidArc = { key: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string };
+type KidArc = { key: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string; place: string };
 type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidArc[] };
 
 const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [], arcs: [] };
-const ARC = ['Dropoff complete', 'At school', 'Pickup started', 'Home'];
+const arcSteps = (place: string) => ['Dropoff complete', `At ${place}`, 'Pickup started', 'Home'];
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
 // One invisible probe per circle reports what matters upward, so the home screen can merge
@@ -124,13 +124,14 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
       const pmHome = pmRun?.kids?.[kid.id] === 'dropped_off';
       const first = (am ?? pm)!;
       let step = -1;
-      let label = am ? `Morning ride at ${fmtTime(effectiveWindow(am[0], am[1], date, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], date, overrides).start)}`;
+      const place = (am ?? pm)![1].name?.trim() || 'school'; // where the child spends the middle of the day
+      let label = am ? `Dropoff at ${fmtTime(effectiveWindow(am[0], am[1], date, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], date, overrides).start)}`;
       let target = first;
       if (pmHome) { step = 3; label = 'Home safe'; target = pm!; }
       else if (pmRun?.status === 'started') { step = 2; label = 'On the way home'; target = pm!; }
-      else if (amDone) { step = Date.now() - (amRun?.completedAt ?? 0) < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? 'Dropped off at school' : 'At school'; target = pm ?? am!; }
-      else if (amRun?.status === 'started') { label = 'On the way to school'; }
-      arcs.push({ key: `${circleId}_${kid.id}`, circleId, legId: target[0], date, kidName: kid.name, step, label });
+      else if (amDone) { step = Date.now() - (amRun?.completedAt ?? 0) < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? `Dropped off at ${place}` : `At ${place}`; target = pm ?? am!; }
+      else if (amRun?.status === 'started') { label = 'On the way'; }
+      arcs.push({ key: `${circleId}_${kid.id}`, circleId, legId: target[0], date, kidName: kid.name, step, label, place });
     }
 
     return { items, reminders, swaps: openSwaps, updates, arcs };
@@ -221,7 +222,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
                 <ChevronRight size={20} color={colors.inkSoft} />
               </View>
               <View style={{ flexDirection: 'row', gap: 4 }}>
-                {ARC.map((s, i) => (
+                {arcSteps(a.place).map((s, i) => (
                   <View key={s} style={{ flex: 1, gap: 6 }}>
                     <View style={{ height: 6, borderRadius: 3, backgroundColor: i <= a.step ? colors.accent : colors.line }} />
                     <Small style={{ fontSize: 11, lineHeight: 14, color: i === a.step ? colors.ink : colors.inkSoft, fontWeight: i === a.step ? '700' : '500' }}>{s}</Small>
