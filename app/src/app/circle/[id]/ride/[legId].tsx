@@ -147,7 +147,8 @@ export default function RideDay() {
   const pos = started && live ? { lat: live.lat, lng: live.lng } : null;
   let remaining: number | null = null;
   if (pos && nextStop) {
-    const straight = nextStop.lat !== undefined && nextStop.lng !== undefined ? haversine(pos, { lat: nextStop.lat, lng: nextStop.lng }) : null;
+    // Straight-line distance undercounts a drive, so allow for roads that are not straight.
+    const straight = nextStop.lat !== undefined && nextStop.lng !== undefined ? haversine(pos, { lat: nextStop.lat, lng: nextStop.lng }) * 1.4 : null;
     if (route) {
       // The route only runs between stops. A driver who starts somewhere else (the afternoon
       // pickup starts at home, but the route begins at school) is off it or behind it, so
