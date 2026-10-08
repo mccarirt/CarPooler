@@ -6,9 +6,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { ref, remove, set } from 'firebase/database';
@@ -261,6 +263,7 @@ export async function setHousehold(next: string[], previous: string[]) {
   await setDoc(doc(db, 'users', uid), { household: next }, { merge: true });
   const added = next.filter((x) => !previous.includes(x));
   const removed = previous.filter((x) => !next.includes(x));
+  await syncHousehold(added, removed);
   if (added.length === 0 && removed.length === 0) return 0;
 
   const circles = await getDocs(collection(db, 'users', uid, 'memberships'));
@@ -295,4 +298,41 @@ export async function logRun(circleId: string, key: string, driverUid: string, k
 export async function savePlaces(places: Place[]) {
   const uid = await ensureSignedIn();
   await setDoc(doc(db, 'users', uid), { places }, { merge: true });
+}
+
+// ---------- shared household record ----------
+// A household record is a small private document only the people in it can read. It holds what the
+// household shares, today just its home address, so your partner gets it without anyone else in your
+// circles seeing it. (Profiles are private to one person, so they can't carry a shared value.)
+export type HouseholdDoc = { memberUids: string[]; home?: Place };
+
+// Make the household record match who you listed: add the people you added, drop the ones you
+// removed, and carry your saved home over if the household has none yet. Safe to call repeatedly.
+export async function syncHousehold(added: string[], removed: string[]) {
+  const uid = await ensureSignedIn();
+  const mine = await getDocs(query(collection(db, 'households'), where('memberUids', 'array-contains', uid)));
+  const existing = mine.docs[0];
+  const myPlaces = ((await getDoc(doc(db, 'users', uid))).data() as { places?: Place[] } | undefined)?.places ?? [];
+  const myHome = myPlaces.find((p) => p.label.trim().toLowerCase() === 'home');
+  if (existing) {
+    const data = existing.data() as HouseholdDoc;
+    const merged = [...new Set([...data.memberUids.filter((u) => !removed.includes(u)), ...added, uid])];
+    const patch: Record<string, unknown> = {};
+    if (merged.length !== data.memberUids.length || merged.some((u) => !data.memberUids.includes(u))) patch.memberUids = merged;
+    if (!data.home && myHome) patch.home = myHome;
+    if (Object.keys(patch).length > 0) await updateDoc(existing.ref, patch);
+  } else {
+    await addDoc(collection(db, 'households'), { memberUids: [...new Set([uid, ...added])], ...(myHome ? { home: myHome } : {}) });
+  }
+}
+
+// Save the home address: into the shared household record if you have one, otherwise onto your profile.
+export async function saveHome(home: Place, household: { id: string } | null) {
+  if (household) {
+    await updateDoc(doc(db, 'households', household.id), { home });
+    return;
+  }
+  const uid = await ensureSignedIn();
+  const places = ((await getDoc(doc(db, 'users', uid))).data() as { places?: Place[] } | undefined)?.places ?? [];
+  await savePlaces([home, ...places.filter((p) => p.label.trim().toLowerCase() !== 'home')]);
 }

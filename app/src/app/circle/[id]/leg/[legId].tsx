@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react-native';
 import { deleteLeg, savePlaces, saveLeg } from '@/lib/data';
-import { homeOf, samePlace } from '@/lib/places';
+import { isHome, samePlace } from '@/lib/places';
+import { useHome } from '@/lib/useHousehold';
 import { useSession } from '@/lib/session';
 import { geocode } from '@/lib/geo';
 import { useCircle } from '@/lib/useCircle';
@@ -20,7 +21,9 @@ export default function LegEditor() {
   const today = toISO(new Date());
   const { profile } = useSession();
   const places = profile?.places ?? [];
-  const home = homeOf(places);
+  const { home } = useHome();
+  // The places offered on each stop: the shared home first, then your other saved places.
+  const chipPlaces = [...(home ? [home] : []), ...places.filter((p) => !isHome(p))];
   const [touched, setTouched] = useState(false); // true once anyone edits the stops by hand
 
   const [loaded, setLoaded] = useState(isNew);
@@ -228,11 +231,11 @@ export default function LegEditor() {
           {s.address.trim() && s.lat === undefined && (
             <Button variant="secondary" label="Find on map" loading={finding === i} onPress={() => findStop(i)} />
           )}
-          {places.length > 0 && (
+          {chipPlaces.length > 0 && (
             <View style={{ gap: space.xs }}>
               <Small>Saved places</Small>
               <Wrap>
-                {places.map((p) => (
+                {chipPlaces.map((p) => (
                   <Chip
                     small
                     key={`${p.label}_${p.lat}`}
@@ -244,7 +247,7 @@ export default function LegEditor() {
               </Wrap>
             </View>
           )}
-          {s.lat !== undefined && s.lng !== undefined && s.label.trim() !== '' && !places.some((p) => samePlace(p, s)) && (
+          {s.lat !== undefined && s.lng !== undefined && s.label.trim() !== '' && !chipPlaces.some((p) => samePlace(p, s)) && (
             <Button
               variant="ghost"
               label={'Save ' + s.label.trim() + ' for next time'}

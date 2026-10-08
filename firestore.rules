@@ -49,6 +49,18 @@ service cloud.firestore {
       }
     }
 
+    // A household: the small private record shared by the people in one family (for now it holds
+    // the home address). Only the people listed in it can read or change it. Anyone can start one,
+    // but only with themselves in it, and a member can't remove themselves by accident through an
+    // update. Nobody can delete one. It is never visible to the circles you belong to.
+    match /households/{hid} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if signedIn() && request.auth.uid in request.resource.data.memberUids;
+      allow update: if signedIn() && request.auth.uid in resource.data.memberUids
+        && request.auth.uid in request.resource.data.memberUids;
+      allow delete: if false;
+    }
+
     // Invite codes. You can fetch ONE if you already know its code, but nobody
     // can list them. The long random code is the key. Only a circle's organizer
     // can create one, and they can never be changed afterward.

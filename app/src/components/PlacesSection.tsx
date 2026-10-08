@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Home, MapPin, X } from 'lucide-react-native';
-import { Place, savePlaces } from '@/lib/data';
+import { Place, saveHome, savePlaces, syncHousehold } from '@/lib/data';
+import { useHome } from '@/lib/useHousehold';
 import { geocode } from '@/lib/geo';
-import { homeOf, isHome } from '@/lib/places';
+import { isHome } from '@/lib/places';
 import { useSession } from '@/lib/session';
 import { Button, Card, ErrorNote, Field, Heading, Small } from '@/components/ui';
 import { Pressable } from 'react-native';
@@ -13,12 +14,25 @@ import { colors, space } from '@/theme';
 export default function PlacesSection() {
   const { profile } = useSession();
   const places = profile?.places ?? [];
-  const home = homeOf(places);
+  const { home, shared, household, loaded } = useHome();
   const [editing, setEditing] = useState(false);
   const [address, setAddress] = useState('');
   const [hit, setHit] = useState<{ lat: number; lng: number; display: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const healed = useRef(false);
+
+  // If you listed people in your household before households were shared, create the shared record now,
+  // and carry your saved home into it, so your partner gets it without you doing anything.
+  useEffect(() => {
+    if (!loaded || healed.current) return;
+    const needsRecord = !household && (profile?.household?.length ?? 0) > 0;
+    const needsHome = !!household && !household.home && places.some(isHome);
+    if (needsRecord || needsHome) {
+      healed.current = true;
+      syncHousehold(needsRecord ? profile!.household! : [], []).catch(() => {});
+    }
+  }, [loaded, household, profile?.household, places]);
 
   async function find() {
     setBusy(true);
@@ -34,13 +48,13 @@ export default function PlacesSection() {
     setBusy(false);
   }
 
-  async function saveHome() {
+  async function commitHome() {
     if (!hit) return;
     setBusy(true);
     setError(null);
     try {
       const mine: Place = { label: 'Home', address: address.trim(), lat: hit.lat, lng: hit.lng };
-      await savePlaces([mine, ...places.filter((p) => !isHome(p))]);
+      await saveHome(mine, household);
       setEditing(false);
       setAddress('');
       setHit(null);
@@ -55,7 +69,7 @@ export default function PlacesSection() {
   return (
     <Card style={{ gap: space.sm }}>
       <Heading>Your places</Heading>
-      <Small>Saved on your profile, so you never retype them. Only you can see this list. A place is copied onto a ride only when you use it there.</Small>
+      <Small>Saved so you never retype them. Your home is shared with your household and nobody else. A place is copied onto a ride only when you use it there.</Small>
 
       {home && !editing ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
@@ -63,6 +77,7 @@ export default function PlacesSection() {
           <View style={{ flex: 1 }}>
             <Small style={{ color: colors.ink, fontWeight: '700' }}>Home</Small>
             <Small>{home.address}</Small>
+            {shared && <Small style={{ color: colors.ok, fontWeight: '600' }}>Shared with your household</Small>}
           </View>
           <Pressable accessibilityRole="button" onPress={() => { setEditing(true); setAddress(home.address); }} style={{ minHeight: 44, justifyContent: 'center' }}>
             <Small style={{ color: colors.accent, fontWeight: '700' }}>Change</Small>
@@ -75,7 +90,7 @@ export default function PlacesSection() {
           {hit && (
             <>
               <Small style={{ color: colors.ok, fontWeight: '600' }}>{hit.display.split(',').slice(0, 3).join(',')} ✓</Small>
-              <Button label="Save as home" loading={busy} onPress={saveHome} />
+              <Button label="Save as home" loading={busy} onPress={commitHome} />
             </>
           )}
           {home && <Button variant="ghost" label="Cancel" onPress={() => { setEditing(false); setHit(null); setError(null); }} />}
