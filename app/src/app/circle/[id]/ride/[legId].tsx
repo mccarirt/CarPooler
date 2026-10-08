@@ -39,6 +39,7 @@ export default function RideDay() {
   const [simulate, setSimulate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lateOpen, setLateOpen] = useState(false);
+  const sheetRef = useRef<ScrollView>(null);
   const [, tick] = useState(0);
 
   // ---- route (only when every stop has been pinned) ----
@@ -116,6 +117,11 @@ export default function RideDay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, route, run?.simulated, id, key, uid]);
 
+  // Each time the ride moves on, bring the sheet back to the top so the next thing to do is in view.
+  useEffect(() => {
+    sheetRef.current?.scrollTo({ y: 0, animated: true });
+  }, [run?.stopIndex, run?.arrived, run?.status]);
+
   // refresh the clock-based readouts every 20s
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 20000);
@@ -167,8 +173,8 @@ export default function RideDay() {
     hero = 'Here';
     heroSub = `At ${nextStop.label}`;
   } else if (started && etaSec !== null) {
-    hero = `${Math.max(1, Math.round(etaSec / 60))} min`;
-    heroSub = `to ${nextStop.label}${etaMs ? ` · arriving ${clock(etaMs)}` : ''}`;
+    hero = nearNext || etaSec < 45 ? 'Now' : `${Math.max(1, Math.round(etaSec / 60))} min`;
+    heroSub = nearNext || etaSec < 45 ? `Arriving at ${nextStop.label}` : `to ${nextStop.label}${etaMs ? ` · arriving ${clock(etaMs)}` : ''}`;
   } else if (started) {
     hero = fmtTime(nextStop.time);
     heroSub = `Next stop: ${nextStop.label} (planned)`;
@@ -284,7 +290,7 @@ export default function RideDay() {
         }}
       >
         <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, marginTop: space.sm }} />
-        <ScrollView style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: space.md, paddingBottom: space.md }} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={sheetRef} style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center', paddingHorizontal: space.md, paddingBottom: space.md }} showsVerticalScrollIndicator={false}>
           <View style={{ width: '100%', maxWidth: 560, gap: space.md, paddingTop: space.md }}>
             {/* hero */}
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md }}>

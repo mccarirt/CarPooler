@@ -8,7 +8,7 @@ import { addDays, driverFor, effectiveWindow, fmtTime, isSkipped, prettyDate, ru
 import { acceptSwap, cancelSwap, runKey, sendBroadcast } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
-import { Body, Card, Heading, Small } from '@/components/ui';
+import { Avatar, Body, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
 type Item = {
@@ -25,16 +25,18 @@ type Item = {
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
 type UpdateItem = { circleName: string; b: Broadcast };
-type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[] };
+type KidArc = { key: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string };
+type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidArc[] };
 
-const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [] };
+const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [], arcs: [] };
+const ARC = ['Dropoff complete', 'At school', 'Pickup started', 'Home'];
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
 // One invisible probe per circle reports what matters upward, so the home screen can merge
 // everything into a single list across every circle.
 function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string, r: Report) => void }) {
   const { uid } = useSession();
-  const { circle, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
+  const { circle, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
   const date = toISO(new Date());
   const tomorrow = addDays(date, 1);
 
@@ -87,9 +89,32 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
       .filter((b) => now - b.createdAt < RECENT_MS && b.fromUid !== uid && b.type !== 'swap_requested')
       .map((b) => ({ circleName: circle.name, b }));
 
-    return { items, reminders, swaps: openSwaps, updates };
+    // The day-long custody arc for each of my children (Uber ends at dropoff; a parent's day doesn't).
+    const arcs: KidArc[] = [];
+    const live = entries.filter(([legId, leg]) => runsOn(leg, date) && !isSkipped(legId, date, overrides, days));
+    for (const kid of kids.filter((k) => k.ownerUid === uid)) {
+      const has = (dir: 'AM' | 'PM') => live.find(([, leg]) => leg.direction === dir && leg.stops.some((s) => s.kidIds.includes(kid.id)));
+      const am = has('AM');
+      const pm = has('PM');
+      if (!am && !pm) continue;
+      const amRun = am ? runs[runKey(am[0], date)] : undefined;
+      const pmRun = pm ? runs[runKey(pm[0], date)] : undefined;
+      const amDone = amRun?.kids?.[kid.id] === 'dropped_off';
+      const pmHome = pmRun?.kids?.[kid.id] === 'dropped_off';
+      const first = (am ?? pm)!;
+      let step = -1;
+      let label = am ? `Morning ride at ${fmtTime(effectiveWindow(am[0], am[1], date, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], date, overrides).start)}`;
+      let target = first;
+      if (pmHome) { step = 3; label = 'Home safe'; target = pm!; }
+      else if (pmRun?.status === 'started') { step = 2; label = 'On the way home'; target = pm!; }
+      else if (amDone) { step = Date.now() - (amRun?.completedAt ?? 0) < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? 'Dropped off at school' : 'At school'; target = pm ?? am!; }
+      else if (amRun?.status === 'started') { label = 'On the way to school'; }
+      arcs.push({ key: `${circleId}_${kid.id}`, circleId, legId: target[0], date, kidName: kid.name, step, label });
+    }
+
+    return { items, reminders, swaps: openSwaps, updates, arcs };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [circle, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, date]);
+  }, [circle, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, date]);
 
   useEffect(() => onReport(circleId, report), [report, circleId, onReport]);
   return null;
@@ -103,6 +128,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
 
   const items = reports.flatMap((r) => r.items).sort((a, b) => a.start.localeCompare(b.start));
   const reminders = reports.flatMap((r) => r.reminders);
+  const arcs = reports.flatMap((r) => r.arcs);
   const swaps = reports.flatMap((r) => r.swaps).sort((a, b) => a.swap.date.localeCompare(b.swap.date));
   const updates = reports
     .flatMap((r) => r.updates)
@@ -156,6 +182,32 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
           <Heading>Latest updates</Heading>
           {updates.map((u, i) => (
             <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide />
+          ))}
+        </View>
+      )}
+
+      {arcs.length > 0 && (
+        <View style={{ gap: space.sm }}>
+          <Heading>Your kids today</Heading>
+          {arcs.map((a) => (
+            <Card key={a.key} onPress={() => router.push(`/circle/${a.circleId}/ride/${a.legId}?date=${a.date}`)} style={{ gap: space.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                <Avatar name={a.kidName} size={44} />
+                <View style={{ flex: 1 }}>
+                  <Body style={{ fontWeight: '700' }}>{a.kidName.split(' ')[0]}</Body>
+                  <Small>{a.label}</Small>
+                </View>
+                <ChevronRight size={20} color={colors.inkSoft} />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                {ARC.map((s, i) => (
+                  <View key={s} style={{ flex: 1, gap: 6 }}>
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: i <= a.step ? colors.accent : colors.line }} />
+                    <Small style={{ fontSize: 11, lineHeight: 14, color: i === a.step ? colors.ink : colors.inkSoft, fontWeight: i === a.step ? '700' : '500' }}>{s}</Small>
+                  </View>
+                ))}
+              </View>
+            </Card>
           ))}
         </View>
       )}

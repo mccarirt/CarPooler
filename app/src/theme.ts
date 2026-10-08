@@ -1,5 +1,5 @@
 // Design tokens. Warm neutral base, one accent, 8pt grid.
-// Typeface is intentionally unset until Ryan picks from the three options (brief §10).
+// Typeface: Hanken Grotesk, chosen by Ryan from three options (brief §10).
 export const colors = {
   bg: '#FBF7F0',
   surface: '#FFFFFF',
@@ -18,12 +18,14 @@ export const space = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
 export const radius = { sm: 12, md: 20, pill: 999 };
 export const tap = 56; // minimum touch target: curbside, one-handed, gloved
 
+const family = "'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif";
+
 export const font = {
-  family: undefined as string | undefined,
-  display: { fontSize: 32, lineHeight: 40, fontWeight: '800' as const, letterSpacing: -0.5 },
-  title: { fontSize: 24, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.25 },
-  heading: { fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
-  body: { fontSize: 16, lineHeight: 24, fontWeight: '400' as const },
-  label: { fontSize: 14, lineHeight: 20, fontWeight: '600' as const },
-  small: { fontSize: 13, lineHeight: 18, fontWeight: '500' as const },
+  family,
+  display: { fontFamily: family, fontSize: 32, lineHeight: 40, fontWeight: '800' as const, letterSpacing: -0.5 },
+  title: { fontFamily: family, fontSize: 24, lineHeight: 32, fontWeight: '700' as const, letterSpacing: -0.25 },
+  heading: { fontFamily: family, fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
+  body: { fontFamily: family, fontSize: 16, lineHeight: 24, fontWeight: '400' as const },
+  label: { fontFamily: family, fontSize: 14, lineHeight: 20, fontWeight: '600' as const },
+  small: { fontFamily: family, fontSize: 13, lineHeight: 18, fontWeight: '500' as const },
 };
