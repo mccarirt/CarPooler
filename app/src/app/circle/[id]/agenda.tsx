@@ -109,7 +109,7 @@ export default function Agenda() {
                     onPress={isAdmin && !day?.skip ? () => setEditing(editing === key ? null : key) : undefined}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: skipped ? 0.5 : 1 }}
                   >
-                    <Avatar name={driver ? nameOf(driver) : '?'} tone="sun" />
+                    <Avatar name={driver ? nameOf(driver) : '?'} id={driver ?? undefined} colorKey={members.find((m) => m.uid === driver)?.color} />
                     <View style={{ flex: 1 }}>
                       <Heading>{rideTitle(leg)}</Heading>
                       <Body soft>{skipped ? 'Skipped' : driver ? `${nameOf(driver)}${driver === uid ? ' (you)' : ''} drives` : 'No driver yet'}</Body>

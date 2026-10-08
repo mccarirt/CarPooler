@@ -1,31 +1,36 @@
 import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { updateProfileEverywhere } from '@/lib/data';
+import { colorFor } from '@/lib/palette';
 import { useSession } from '@/lib/session';
-import { Body, Button, ErrorNote, Field, Gap, leave, Screen, Title } from '@/components/ui';
+import { Avatar, Body, Button, ColorPicker, ErrorNote, Field, Gap, Heading, leave, Screen, Small, Title } from '@/components/ui';
+import { space } from '@/theme';
 
 export default function EditProfile() {
-  const { profile } = useSession();
+  const { profile, uid } = useSession();
   const [name, setName] = useState('');
   const [car, setCar] = useState('');
+  const [color, setColor] = useState('');
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fill the form once, when the saved profile arrives.
   useEffect(() => {
-    if (profile && !ready) {
+    if (profile && uid && !ready) {
       setName(profile.name);
       setCar(profile.car);
+      setColor(colorFor(uid, profile.color).key);
       setReady(true);
     }
-  }, [profile, ready]);
+  }, [profile, uid, ready]);
 
   async function save() {
     setBusy(true);
     setError(null);
     try {
-      await updateProfileEverywhere(name, car);
-      leave('/');
+      await updateProfileEverywhere(name, car, color);
+      leave('/me');
     } catch {
       setError('Could not save. Check your connection and try again.');
       setBusy(false);
@@ -39,6 +44,16 @@ export default function EditProfile() {
       <Gap size="sm" />
       <Field label="Your name" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" />
       <Field label="Your car" hint="Kids spot it faster in the pickup line." value={car} onChangeText={setCar} placeholder="Silver Honda Pilot" />
+      <View style={{ gap: space.sm }}>
+        <Heading>Your color</Heading>
+        <Small>It marks you on every ride card, so the family can tell at a glance who is driving.</Small>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+          <Avatar name={name || '?'} size={56} id={uid ?? 'x'} colorKey={color} />
+          <View style={{ flex: 1 }}>
+            <ColorPicker value={color} onChange={setColor} />
+          </View>
+        </View>
+      </View>
       <ErrorNote message={error} />
     </Screen>
   );

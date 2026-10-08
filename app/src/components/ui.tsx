@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { colors, font, radius, space, tap } from '@/theme';
+import { colorFor, PALETTE } from '@/lib/palette';
 
 // `tab`: the screen sits above the bottom tab bar, which already clears the phone's bottom edge.
 export function Screen({ children, back, footer, tab }: { children: ReactNode; back?: boolean; footer?: ReactNode; tab?: boolean }) {
@@ -144,22 +145,49 @@ export function initialsOf(name: string) {
   return (first + last).toUpperCase();
 }
 
-// Initials avatars only. No photos of minors, ever (brief §5g).
-export function Avatar({ name, size = 48, tone = 'accent' }: { name: string; size?: number; tone?: 'accent' | 'sun' }) {
+// Initials avatars only. No photos of minors, ever (brief §5g). Pass the person's id (and their
+// chosen colorKey, if any) to give them their own color; without an id it falls back to plain styles.
+export function Avatar({ name, size = 48, tone = 'accent', id, colorKey, ring }: { name: string; size?: number; tone?: 'accent' | 'sun'; id?: string; colorKey?: string | null; ring?: boolean }) {
+  const c = id ? colorFor(id, colorKey) : null;
+  const bg = c ? c.bg : tone === 'accent' ? colors.accentSoft : colors.sunk;
+  const fg = c ? c.fg : tone === 'accent' ? colors.accent : colors.ink;
   return (
     <View
       style={{
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: tone === 'accent' ? colors.accentSoft : colors.sunk,
+        backgroundColor: bg,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: ring ? 2 : 0,
+        borderColor: colors.surface,
       }}
     >
-      <Text style={{ color: tone === 'accent' ? colors.accent : colors.ink, fontWeight: '800', fontSize: size * 0.36 }}>
-        {initialsOf(name)}
-      </Text>
+      <Text style={{ color: fg, fontWeight: '800', fontSize: size * 0.38 }}>{initialsOf(name)}</Text>
+    </View>
+  );
+}
+
+// A row of swatches for choosing a person's color.
+export function ColorPicker({ value, onChange }: { value: string; onChange: (key: string) => void }) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+      {PALETTE.map((c) => {
+        const on = c.key === value;
+        return (
+          <Pressable
+            key={c.key}
+            accessibilityRole="button"
+            accessibilityLabel={c.label}
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange(c.key)}
+            style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', borderWidth: on ? 3 : 1.5, borderColor: on ? c.fg : colors.line }}
+          >
+            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: c.fg }} />
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

@@ -19,7 +19,7 @@ export default function Me() {
       <Title>Me</Title>
       <Card style={{ gap: space.md }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-          <Avatar name={profile?.name ?? '?'} size={56} tone="sun" />
+          <Avatar name={profile?.name ?? '?'} size={56} id={uid ?? undefined} colorKey={profile?.color} />
           <View style={{ flex: 1, gap: 2 }}>
             <Heading>{profile?.name}</Heading>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -58,7 +58,7 @@ function ChildrenIn({ circleId, circleName, uid }: { circleId: string; circleNam
       <Small>{circleName}</Small>
       {mine.map((k) => (
         <Card key={k.id} onPress={() => router.push(`/circle/${circleId}/kid/${k.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-          <Avatar name={k.name} size={44} />
+          <Avatar name={k.name} size={44} id={k.id} colorKey={k.color} />
           <View style={{ flex: 1 }}>
             <Body style={{ fontWeight: '600' }}>{k.name}</Body>
             {k.notes ? <Small>{k.notes}</Small> : null}

@@ -386,7 +386,7 @@ export default function RideDay() {
 
             {/* driver card */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md }}>
-              <Avatar name={driver?.name ?? '?'} tone="sun" />
+              <Avatar name={driver?.name ?? '?'} id={driver?.uid} colorKey={driver?.color} />
               <View style={{ flex: 1 }}>
                 <Heading>{driver ? `${driver.name}${isDriver ? ' (you)' : ''}` : 'No driver assigned'}</Heading>
                 {driver?.car ? (
@@ -430,7 +430,7 @@ export default function RideDay() {
                   const act = isDriver ? actions[k] : undefined;
                   return (
                     <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.sm, paddingRight: space.md, minHeight: 64 }}>
-                      <Avatar name={kidName(k)} size={44} />
+                      <Avatar name={kidName(k)} size={44} id={k} colorKey={kids.find((x) => x.id === k)?.color} />
                       <View style={{ flex: 1 }}>
                         <Body style={{ fontWeight: '600' }}>{kidName(k)}</Body>
                         <Small>{stops.find((s) => s.kidIds.includes(k))?.label}</Small>

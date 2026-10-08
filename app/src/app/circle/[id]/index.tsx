@@ -161,7 +161,7 @@ export default function CircleDetail() {
       {members.map((m) => (
         <Card key={m.uid} style={{ gap: space.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-            <Avatar name={m.name} tone="sun" />
+            <Avatar name={m.name} id={m.uid} colorKey={m.color} />
             <View style={{ flex: 1 }}>
               <Heading>
                 {m.name}
@@ -182,7 +182,7 @@ export default function CircleDetail() {
               onPress={uid && guardiansOf(k).includes(uid) ? () => router.push(`/circle/${id}/kid/${k.id}`) : undefined}
               style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.bg, padding: space.sm }}
             >
-              <Avatar name={k.name} size={40} />
+              <Avatar name={k.name} size={40} id={k.id} colorKey={k.color} />
               <View style={{ flex: 1 }}>
                 <Body>{k.name}</Body>
                 {k.notes ? <Small>{k.notes}</Small> : null}

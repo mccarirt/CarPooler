@@ -67,7 +67,7 @@ export default function Join() {
     setError(null);
     try {
       await saveProfile(name, car);
-      const id = await joinCircle(code, { name: name.trim(), car: car.trim() });
+      const id = await joinCircle(code, { name: name.trim(), car: car.trim(), ...(profile?.color ? { color: profile.color } : {}) });
       router.replace(`/circle/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not join. Try again.');

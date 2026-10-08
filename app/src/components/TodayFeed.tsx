@@ -8,6 +8,7 @@ import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg,
 import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
+import { kidIdsOf } from '@/lib/ride';
 import { Avatar, Body, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
@@ -24,11 +25,15 @@ type Item = {
   mine: boolean;
   status: 'scheduled' | 'started' | 'completed' | 'skipped';
   legLabel: string;
+  driverId: string | null;
+  driverName: string;
+  driverColor?: string;
+  kidsOn: { id: string; name: string; color?: string }[];
 };
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
 type UpdateItem = { circleName: string; b: Broadcast };
-type KidArc = { key: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string; place: string };
+type KidArc = { key: string; kidId: string; kidColor?: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string; place: string };
 type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidArc[] };
 
 const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [], arcs: [] };
@@ -72,6 +77,13 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
             mine: driver === uid,
             status,
             legLabel: label(leg),
+            driverId: driver ?? null,
+            driverName: driver ? nameOf(driver) : 'No driver yet',
+            driverColor: members.find((m) => m.uid === driver)?.color,
+            kidsOn: kidIdsOf(leg.stops).flatMap((kid) => {
+              const k = kids.find((x) => x.id === kid);
+              return k ? [{ id: k.id, name: k.name, color: k.color }] : [];
+            }),
           };
         }),
     );
@@ -122,7 +134,7 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
       else if (pmRun?.status === 'started') { step = 2; label = 'On the way home'; target = pm!; }
       else if (amDone) { step = Date.now() - (amRun?.completedAt ?? 0) < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? `Dropped off at ${place}` : `At ${place}`; target = pm ?? am!; }
       else if (amRun?.status === 'started') { label = 'On the way'; }
-      arcs.push({ key: `${circleId}_${kid.id}`, circleId, legId: target[0], date: today, kidName: kid.name, step, label, place });
+      arcs.push({ key: `${circleId}_${kid.id}`, kidId: kid.id, kidColor: kid.color, circleId, legId: target[0], date: today, kidName: kid.name, step, label, place });
     }
 
     return { items, reminders, swaps: openSwaps, updates, arcs };
@@ -225,7 +237,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
           {arcs.map((a) => (
             <Card key={a.key} onPress={() => router.push(`/circle/${a.circleId}/ride/${a.legId}?date=${a.date}`)} style={{ gap: space.md }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-                <Avatar name={a.kidName} size={44} />
+                <Avatar name={a.kidName} size={44} id={a.kidId} colorKey={a.kidColor} />
                 <View style={{ flex: 1 }}>
                   <Body style={{ fontWeight: '700' }}>{a.kidName.split(' ')[0]}</Body>
                   <Small>{a.label}</Small>
@@ -297,22 +309,43 @@ export function WeekFeed({ circleIds, weekStart }: { circleIds: string[]; weekSt
 }
 
 // One ride in a list. Deliberately plain: time and status on top, the name across the full width,
-// then who is driving. Tapping it opens the ride, where everything you can do with it lives.
+// then who is going and who is driving, shown as colored avatars so it reads at a glance.
+// Tapping it opens the ride, where everything you can do with it lives.
 function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
   return (
     <Card
       onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}
-      style={{ gap: space.xs, opacity: it.status === 'skipped' ? 0.5 : 1 }}
+      style={{ gap: space.sm, opacity: it.status === 'skipped' ? 0.5 : 1 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Heading>{fmtTime(it.start)}</Heading>
         <StatusDot status={it.status} />
       </View>
-      <Body style={{ fontWeight: '700' }}>{it.title}</Body>
-      <Small>
-        {showCircle ? `${it.circleName} · ` : ''}
-        {it.dir} · {it.mine ? 'You are driving' : `${it.driver} is driving`}
-      </Small>
+      <View style={{ gap: 2 }}>
+        <Body style={{ fontWeight: '700' }}>{it.title}</Body>
+        <Small>
+          {showCircle ? `${it.circleName} · ` : ''}
+          {it.dir}
+        </Small>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
+          {it.kidsOn.slice(0, 4).map((k, i) => (
+            <View key={k.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+              <Avatar name={k.name} size={28} id={k.id} colorKey={k.color} ring />
+            </View>
+          ))}
+          {it.kidsOn.length > 0 && (
+            <Small style={{ marginLeft: space.sm, flexShrink: 1 }} >
+              {it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ')}
+            </Small>
+          )}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <Small style={{ color: colors.ink, fontWeight: '600' }}>{it.mine ? 'You' : it.driverName.split(' ')[0]}</Small>
+          <Avatar name={it.driverName} size={32} id={it.driverId ?? undefined} colorKey={it.driverColor} />
+        </View>
+      </View>
     </Card>
   );
 }

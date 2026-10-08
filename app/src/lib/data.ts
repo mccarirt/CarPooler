@@ -14,9 +14,9 @@ import {
 import { ref, remove, set } from 'firebase/database';
 import { auth, db, rtdb } from './firebase';
 
-export type Profile = { name: string; car: string };
+export type Profile = { name: string; car: string; color?: string };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
-export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member' };
+export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member'; color?: string };
 export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[] };
 export type Kid = {
   name: string;
@@ -26,6 +26,7 @@ export type Kid = {
   ownerUid: string;
   ownerName: string;
   guardianUids?: string[]; // other parents of this child; the owner is always a parent
+  color?: string; // avatar color key, see lib/palette
 };
 
 export const PUBLIC_URL = 'https://carpooler-app-seven.vercel.app';
@@ -46,7 +47,7 @@ export async function ensureSignedIn() {
 
 export async function saveProfile(name: string, car: string) {
   const uid = await ensureSignedIn();
-  await setDoc(doc(db, 'users', uid), { name: name.trim(), car: car.trim() });
+  await setDoc(doc(db, 'users', uid), { name: name.trim(), car: car.trim() }, { merge: true }); // keeps a chosen color
   return uid;
 }
 
@@ -61,6 +62,7 @@ export async function createCircle(name: string, profile: Profile) {
     uid,
     name: profile.name,
     car: profile.car,
+    ...(profile.color ? { color: profile.color } : {}),
     role: 'admin',
   });
   batch.set(doc(db, 'invites', code), { circleId: circleRef.id, circleName });
@@ -84,6 +86,7 @@ export async function joinCircle(code: string, profile: Profile) {
     uid,
     name: profile.name,
     car: profile.car,
+    ...(profile.color ? { color: profile.color } : {}),
     role: 'member',
     code,
   });
@@ -227,10 +230,10 @@ export async function setCoOrganizers(circleId: string, uids: string[]) {
 }
 
 // Change your name or car everywhere it is shown: your profile and your card in every circle.
-export async function updateProfileEverywhere(name: string, car: string) {
+export async function updateProfileEverywhere(name: string, car: string, color?: string) {
   const uid = await ensureSignedIn();
-  const clean = { name: name.trim(), car: car.trim() };
-  await setDoc(doc(db, 'users', uid), clean);
+  const clean = { name: name.trim(), car: car.trim(), ...(color ? { color } : {}) };
+  await setDoc(doc(db, 'users', uid), clean, { merge: true });
   const circles = await getDocs(collection(db, 'users', uid, 'memberships'));
   const batch = writeBatch(db);
   circles.docs.forEach((c) => batch.update(doc(db, 'circles', c.id, 'members', uid), clean));

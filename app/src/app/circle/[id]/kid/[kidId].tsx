@@ -5,7 +5,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { addKid, deleteKid, Kid, updateKid } from '@/lib/data';
 import { useSession } from '@/lib/session';
-import { Avatar, Body, Button, Centered, Chip, ErrorNote, Field, Gap, leave, Screen, Small, Title, Wrap } from '@/components/ui';
+import { Avatar, Body, Button, Centered, Chip, ColorPicker, ErrorNote, Field, Gap, leave, Screen, Small, Title, Wrap } from '@/components/ui';
+import { colorFor, PALETTE } from '@/lib/palette';
 import { useCircle } from '@/lib/useCircle';
 import { colors } from '@/theme';
 
@@ -13,7 +14,9 @@ export default function KidProfile() {
   const { id, kidId } = useLocalSearchParams<{ id: string; kidId: string }>();
   const isNew = kidId === 'new';
   const { profile, uid } = useSession();
-  const { members } = useCircle(id);
+  const { members, kids: circleKids } = useCircle(id);
+  const [color, setColor] = useState('');
+  const [picked, setPicked] = useState(false); // true once someone chooses a color by hand
   const [ownerUid, setOwnerUid] = useState<string | null>(null);
   const [guardians, setGuardians] = useState<string[]>([]);
   const [ready, setReady] = useState(isNew);
@@ -35,10 +38,19 @@ export default function KidProfile() {
         setEmergencyPhone(k.emergencyPhone);
         setOwnerUid(k.ownerUid);
         setGuardians(k.guardianUids ?? []);
+        setColor(colorFor(kidId, k.color).key);
+        setPicked(true);
       }
       setReady(true);
     });
   }, [id, kidId, isNew]);
+
+  // A new child starts with the first color the other children in this circle are not using.
+  useEffect(() => {
+    if (!isNew || picked) return;
+    const used = new Set(circleKids.map((k) => colorFor(k.id, k.color).key));
+    setColor((PALETTE.find((c) => !used.has(c.key)) ?? PALETTE[0]).key);
+  }, [isNew, picked, circleKids]);
 
   if (!ready)
     return (
@@ -51,7 +63,7 @@ export default function KidProfile() {
     if (!profile) return;
     setBusy(true);
     setError(null);
-    const kid = { name: name.trim(), notes: notes.trim(), emergencyName: emergencyName.trim(), emergencyPhone: emergencyPhone.trim(), guardianUids: [...new Set([ownerUid ?? uid ?? '', ...guardians].filter(Boolean))] };
+    const kid = { name: name.trim(), notes: notes.trim(), emergencyName: emergencyName.trim(), emergencyPhone: emergencyPhone.trim(), guardianUids: [...new Set([ownerUid ?? uid ?? '', ...guardians].filter(Boolean))], ...(color ? { color } : {}) };
     try {
       if (isNew) await addKid(id, kid, profile);
       else await updateKid(id, kidId, kid);
@@ -76,7 +88,7 @@ export default function KidProfile() {
   return (
     <Screen back footer={<Button label={isNew ? 'Add child' : 'Save changes'} onPress={save} loading={busy} disabled={!name.trim() || !profile} />}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-        <Avatar name={name || '?'} size={64} />
+        <Avatar name={name || '?'} size={64} id={isNew ? 'new' : kidId} colorKey={color} />
         <View style={{ flex: 1 }}>
           <Title>{isNew ? 'Add a child' : name || 'Child'}</Title>
           <Small>Initials only. We never store photos of children.</Small>
@@ -84,6 +96,11 @@ export default function KidProfile() {
       </View>
       <Gap size="xs" />
       <Field label="Name" value={name} onChangeText={setName} placeholder="Maya" autoCapitalize="words" />
+      <View style={{ gap: 8 }}>
+        <Body style={{ fontWeight: '600' }}>Color</Body>
+        <Small>Marks this child on ride cards so you can tell at a glance.</Small>
+        <ColorPicker value={color} onChange={(c) => { setColor(c); setPicked(true); }} />
+      </View>
       <Field
         label="Notes for drivers"
         hint="Booster seat, allergies, where they wait for pickup."
