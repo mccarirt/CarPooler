@@ -3,9 +3,9 @@ import L from 'leaflet';
 import { colors } from '@/theme';
 import type { MapProps } from './mapTypes';
 
-// Free Carto "Voyager" tiles (OpenStreetMap data): warm and light. Swap the URL to change provider.
-const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const ATTRIBUTION = '&copy; OpenStreetMap contributors &copy; CARTO';
+// Standard OpenStreetMap tiles: free, no key (fine for light prototype use; revisit before a wide launch).
+const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION = '&copy; OpenStreetMap contributors';
 
 let styled = false;
 function injectStyles() {
@@ -22,6 +22,7 @@ function injectStyles() {
     .cc-pin.current{background:${colors.accent};border-color:${colors.accent};color:#fff;transform:scale(1.15)}
     .cc-pin.done{background:${colors.ink};color:#fff;opacity:.55}
     .cc-car{width:28px;height:28px;border-radius:14px;background:${colors.accent};border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);box-sizing:border-box}
+    .leaflet-tile-pane{filter:saturate(.65) sepia(.18) brightness(1.03)}
     .leaflet-marker-icon.cc-car-wrap{transition:transform 1.1s linear}
     .leaflet-zoom-anim .leaflet-marker-icon.cc-car-wrap{transition:none}
   `;
