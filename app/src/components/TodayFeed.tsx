@@ -5,11 +5,11 @@ import { Bell, Check, ChevronRight, Sun } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
 import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg, prettyDate, rideLabel, runsOn, toISO } from '@/lib/schedule';
-import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast } from '@/lib/data';
+import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast, startRun } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
-import { kidIdsOf, Run } from '@/lib/ride';
-import { Avatar, Body, Card, Heading, Small } from '@/components/ui';
+import { initialKids, kidIdsOf, Run } from '@/lib/ride';
+import { Avatar, Body, Button, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
 type Item = {
@@ -29,6 +29,7 @@ type Item = {
   driverName: string;
   driverColor?: string;
   kidsOn: { id: string; name: string; color?: string }[];
+  kidIds: string[];
 };
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
@@ -80,6 +81,7 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
             driverId: driver ?? null,
             driverName: driver ? nameOf(driver) : 'No driver yet',
             driverColor: members.find((m) => m.uid === driver)?.color,
+            kidIds: kidIdsOf(leg.stops),
             kidsOn: kidIdsOf(leg.stops).flatMap((kid) => {
               const k = kids.find((x) => x.id === kid);
               return k ? [{ id: k.id, name: k.name, color: k.color }] : [];
@@ -324,33 +326,71 @@ export function WeekFeed({ circleIds, weekStart }: { circleIds: string[]; weekSt
 // who is driving each ride at a glance. Time and ride name share the top line; the second line says
 // dropoff or pickup, who is going, and who drives. A status badge appears only when it says something
 // (live, done, skipped): "scheduled" is the default and would just be noise on every row.
-// Tapping the card opens the ride, where everything you can do with it lives.
+// Tapping the card opens the ride. When it is YOUR ride and about to begin (within an hour of its
+// start, today), two buttons appear: View, and Start leg, which starts it right here so the driver
+// saves a tap. Every other card stays plain.
 function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
+  const { uid, profile } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [, tick] = useState(0);
   const kidNames = it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ');
   const driver = it.mine ? 'You drive' : `${it.driverName.split(' ')[0]} drives`;
+  const open = () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`);
+
+  // The Start button appears on its own as the ride's time approaches, so check the clock every minute.
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
+  const now = new Date();
+  const [h, m] = it.start.split(':').map(Number);
+  const canStart = it.mine && it.status === 'scheduled' && it.date === toISO(now) && now.getHours() * 60 + now.getMinutes() >= h * 60 + m - 60;
+
+  async function start() {
+    if (!uid) return;
+    setBusy(true);
+    try {
+      const name = profile?.name ?? 'A parent';
+      await startRun(it.circleId, runKey(it.legId, it.date), uid, initialKids(it.kidIds), false);
+      await sendBroadcast(it.circleId, { type: 'ride_started', fromUid: uid, fromName: name, legId: it.legId, legLabel: it.legLabel, date: it.date }).catch(() => {});
+      open(); // sharing the car's location begins once the ride screen is open
+    } catch {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Card
-      onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm + 4, opacity: it.status === 'skipped' ? 0.5 : 1 }}
-    >
-      <Avatar name={it.driverName} size={44} id={it.driverId ?? undefined} colorKey={it.driverColor} />
-      <View style={{ flex: 1, gap: 2 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Heading>{fmtTime(it.start)}</Heading>
-          <Body style={{ fontWeight: '700', flex: 1 }}>{it.title}</Body>
-          {it.status === 'completed' && (
-            <View accessibilityLabel="Done" style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.okSoft, alignItems: 'center', justifyContent: 'center' }}>
-              <Check size={16} color={colors.ok} strokeWidth={3} />
-            </View>
-          )}
-          {(it.status === 'started' || it.status === 'skipped') && <StatusDot status={it.status} />}
+    <Card onPress={it.status === 'skipped' ? undefined : open} style={{ gap: space.sm, paddingVertical: space.sm + 4, opacity: it.status === 'skipped' ? 0.5 : 1 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+        <Avatar name={it.driverName} size={44} id={it.driverId ?? undefined} colorKey={it.driverColor} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <Heading>{fmtTime(it.start)}</Heading>
+            <Body style={{ fontWeight: '700', flex: 1 }}>{it.title}</Body>
+            {it.status === 'completed' && (
+              <View accessibilityLabel="Done" style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.okSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <Check size={16} color={colors.ok} strokeWidth={3} />
+              </View>
+            )}
+            {(it.status === 'started' || it.status === 'skipped') && <StatusDot status={it.status} />}
+          </View>
+          <Small>
+            {showCircle ? `${it.circleName} · ` : ''}
+            {it.dir}
+            {kidNames ? ` · ${kidNames}` : ''} · {driver}
+          </Small>
         </View>
-        <Small>
-          {showCircle ? `${it.circleName} · ` : ''}
-          {it.dir}
-          {kidNames ? ` · ${kidNames}` : ''} · {driver}
-        </Small>
       </View>
+      {canStart && (
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          <View style={{ flex: 1 }}>
+            <Button variant="secondary" label="View" onPress={open} disabled={busy} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button label="Start leg" onPress={start} loading={busy} />
+          </View>
+        </View>
+      )}
     </Card>
   );
 }
