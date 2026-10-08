@@ -22,17 +22,25 @@ const ICONS: Record<Broadcast['type'], { icon: (c: string) => ReactNode; bg: str
 export function UpdateRow({ b, showRide, onPress, onDismiss }: { b: Broadcast; showRide?: boolean; onPress?: () => void; onDismiss?: () => void }) {
   const s = ICONS[b.type];
   const x = useRef(new Animated.Value(0)).current;
+  const dragged = useRef(false); // a swipe must never also count as a tap on the card
   const pan = useMemo(
     () =>
       PanResponder.create({
         // Only take over for a clearly sideways drag, so taps and vertical scrolling still work.
         onMoveShouldSetPanResponder: (_, g) => !!onDismiss && Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderGrant: () => {
+          dragged.current = true;
+        },
         onPanResponderMove: Animated.event([null, { dx: x }], { useNativeDriver: false }),
         onPanResponderRelease: (_, g) => {
+          setTimeout(() => (dragged.current = false), 350);
           if (Math.abs(g.dx) > 90) Animated.timing(x, { toValue: g.dx > 0 ? 600 : -600, duration: 160, useNativeDriver: false }).start(() => onDismiss?.());
           else Animated.spring(x, { toValue: 0, useNativeDriver: false }).start();
         },
-        onPanResponderTerminate: () => Animated.spring(x, { toValue: 0, useNativeDriver: false }).start(),
+        onPanResponderTerminate: () => {
+          setTimeout(() => (dragged.current = false), 350);
+          Animated.spring(x, { toValue: 0, useNativeDriver: false }).start();
+        },
       }),
     [onDismiss, x],
   );
@@ -56,7 +64,13 @@ export function UpdateRow({ b, showRide, onPress, onDismiss }: { b: Broadcast; s
     </View>
   );
   const body = onPress ? (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        if (!dragged.current) onPress();
+      }}
+      style={({ pressed }) => pressed && { opacity: 0.85 }}
+    >
       {row}
     </Pressable>
   ) : (
