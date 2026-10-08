@@ -8,6 +8,7 @@ import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg,
 import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast, startRun } from '@/lib/data';
 import { Broadcast, newestFirst, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
+import { useDismissed } from '@/lib/dismissed';
 import { initialKids, kidIdsOf, Run } from '@/lib/ride';
 import { Avatar, Body, Button, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
@@ -173,6 +174,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
   const { uid, profile } = useSession();
   const today = useMemo(() => [toISO(new Date())], []);
   const { reports, onReport, ready } = useReports(circleIds);
+  const { dismissed, dismiss } = useDismissed();
 
   const items = reports.flatMap((r) => r.items).sort((a, b) => a.start.localeCompare(b.start));
   const reminders = reports.flatMap((r) => r.reminders);
@@ -185,7 +187,8 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
     const key = u.circleId + '_' + u.b.legId + '_' + u.b.date;
     if (!newestPerRide.has(key)) newestPerRide.set(key, u);
   }
-  const updates = [...newestPerRide.values()].slice(0, 3);
+  const updateKey = (u: UpdateItem) => u.circleId + '_' + u.b.legId + '_' + u.b.date + '_' + u.b.createdAt;
+  const updates = [...newestPerRide.values()].filter((u) => !dismissed.has(updateKey(u))).slice(0, 3);
   const myName = profile?.name ?? 'A parent';
   const nothing = items.length + reminders.length + arcs.length + swaps.length + updates.length === 0;
 
@@ -244,7 +247,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
         <View style={{ gap: space.sm }}>
           <Heading>Latest updates</Heading>
           {updates.map((u, i) => (
-            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide onPress={() => router.push("/circle/" + u.circleId + "/ride/" + u.b.legId + "?date=" + u.b.date)} />
+            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide onPress={() => router.push("/circle/" + u.circleId + "/ride/" + u.b.legId + "?date=" + u.b.date)} onDismiss={() => dismiss(updateKey(u))} />
           ))}
         </View>
       )}

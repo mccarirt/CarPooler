@@ -1,6 +1,6 @@
-import { ReactNode, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { ArrowLeftRight, Check, ChevronRight, Clock, Flag, MapPin, Play, UserCheck } from 'lucide-react-native';
+import { ReactNode, useMemo, useRef, useState } from 'react';
+import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
+import { ArrowLeftRight, Check, ChevronRight, Clock, Flag, MapPin, Play, UserCheck, X } from 'lucide-react-native';
 import { Broadcast, broadcastText, Swap, timeAgo } from '@/lib/social';
 import { fmtTime, prettyDate } from '@/lib/schedule';
 import { Body, Button, Small } from '@/components/ui';
@@ -18,26 +18,55 @@ const ICONS: Record<Broadcast['type'], { icon: (c: string) => ReactNode; bg: str
 };
 
 // A persistent in-app status line. Nothing important lives only in a push notification (brief §8).
-export function UpdateRow({ b, showRide, onPress }: { b: Broadcast; showRide?: boolean; onPress?: () => void }) {
+// With onDismiss it can be swiped away (either direction) or cleared with the X.
+export function UpdateRow({ b, showRide, onPress, onDismiss }: { b: Broadcast; showRide?: boolean; onPress?: () => void; onDismiss?: () => void }) {
   const s = ICONS[b.type];
+  const x = useRef(new Animated.Value(0)).current;
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        // Only take over for a clearly sideways drag, so taps and vertical scrolling still work.
+        onMoveShouldSetPanResponder: (_, g) => !!onDismiss && Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderMove: Animated.event([null, { dx: x }], { useNativeDriver: false }),
+        onPanResponderRelease: (_, g) => {
+          if (Math.abs(g.dx) > 90) Animated.timing(x, { toValue: g.dx > 0 ? 600 : -600, duration: 160, useNativeDriver: false }).start(() => onDismiss?.());
+          else Animated.spring(x, { toValue: 0, useNativeDriver: false }).start();
+        },
+        onPanResponderTerminate: () => Animated.spring(x, { toValue: 0, useNativeDriver: false }).start(),
+      }),
+    [onDismiss, x],
+  );
+
   const row = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md }}>
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: s.bg, alignItems: 'center', justifyContent: 'center' }}>{s.icon(s.fg)}</View>
       <View style={{ flex: 1, gap: 2 }}>
         <Body style={{ fontWeight: '600' }}>{broadcastText(b)}</Body>
         <Small>
-          {showRide ? `${b.legLabel} · ` : ''}
+          {showRide ? b.legLabel + ' · ' : ''}
           {timeAgo(b.createdAt)}
         </Small>
       </View>
-      {onPress && <ChevronRight size={20} color={colors.inkSoft} />}
+      {onPress && !onDismiss && <ChevronRight size={20} color={colors.inkSoft} />}
+      {onDismiss && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onDismiss} hitSlop={8} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <X size={20} color={colors.inkSoft} />
+        </Pressable>
+      )}
     </View>
   );
-  if (!onPress) return row;
-  return (
+  const body = onPress ? (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
       {row}
     </Pressable>
+  ) : (
+    row
+  );
+  if (!onDismiss) return body;
+  return (
+    <Animated.View {...pan.panHandlers} style={{ transform: [{ translateX: x }], opacity: x.interpolate({ inputRange: [-300, 0, 300], outputRange: [0.2, 1, 0.2], extrapolate: 'clamp' }) }}>
+      {body}
+    </Animated.View>
   );
 }
 
