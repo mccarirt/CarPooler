@@ -25,3 +25,25 @@ export function useDismissed() {
   };
   return { dismissed: new Set(list), dismiss };
 }
+
+// "Save your account" reminder on Today: "Not now" hides it for three days on this phone.
+const NUDGE = 'cc.accountNudgeUntil';
+export function useNudgeDismissed() {
+  const [until, setUntil] = useState<number>(() => {
+    try {
+      return Number((typeof localStorage !== 'undefined' && localStorage.getItem(NUDGE)) || 0);
+    } catch {
+      return 0;
+    }
+  });
+  const hide = () => {
+    const t = Date.now() + 3 * 24 * 60 * 60 * 1000;
+    setUntil(t);
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(NUDGE, String(t));
+    } catch {
+      // Storage blocked: it just comes back next time.
+    }
+  };
+  return { hidden: Date.now() < until, hide };
+}

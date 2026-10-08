@@ -3,21 +3,39 @@ import { router } from 'expo-router';
 import { Plus, Users } from 'lucide-react-native';
 import { useMemberships } from '@/lib/useMemberships';
 import { useSession } from '@/lib/session';
+import { useAccountEmail } from '@/lib/account';
+import { useNudgeDismissed } from '@/lib/dismissed';
 import { prettyDate, toISO } from '@/lib/schedule';
 import TodayFeed from '@/components/TodayFeed';
-import { EmptyState, Screen, SkeletonCard, Small, Title } from '@/components/ui';
-import { space } from '@/theme';
+import { Body, Button, Card, EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
+import { colors, space } from '@/theme';
 
 // Today: what needs me right now.
 export default function Today() {
   const { profile } = useSession();
   const rows = useMemberships();
+  const email = useAccountEmail();
+  const { hidden, hide } = useNudgeDismissed();
 
   return (
     <Screen tab>
       <View style={{ height: space.sm }} />
       <Small>Hi, {(profile?.name ?? '').split(' ')[0]}</Small>
       <Title>{prettyDate(toISO(new Date()))}</Title>
+      {!email && profile && !hidden && (
+        <Card style={{ gap: space.sm, backgroundColor: colors.accentSoft, borderColor: colors.accentSoft }}>
+          <Heading>Save your account</Heading>
+          <Body>Add an email so a lost phone does not mean a lost account.</Body>
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <View style={{ flex: 1 }}>
+              <Button label="Add email" onPress={() => router.push('/me')} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button variant="secondary" label="Not now" onPress={hide} />
+            </View>
+          </View>
+        </Card>
+      )}
       {rows === null ? (
         <SkeletonCard />
       ) : rows.length === 0 ? (

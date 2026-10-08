@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { Car, ChevronRight, Pencil } from 'lucide-react-native';
+import AccountSection from '@/components/AccountSection';
 import PlacesSection from '@/components/PlacesSection';
 import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
@@ -34,6 +35,8 @@ export default function Me() {
         <Button variant="secondary" label="Edit name or car" icon={<Pencil size={20} color={colors.ink} strokeWidth={2.25} />} onPress={() => router.push('/profile')} />
       </Card>
 
+      <AccountSection />
+
       <HouseholdSection circleIds={(rows ?? []).map((r) => ({ id: r.id, name: r.circleName }))} />
 
       <PlacesSection />
@@ -47,13 +50,6 @@ export default function Me() {
 
       <Button variant="ghost" label="Something wrong? Copy a report" onPress={() => router.push('/debug')} />
 
-      <Card style={{ gap: space.xs, backgroundColor: colors.sunk, borderColor: colors.sunk }}>
-        <Body style={{ fontWeight: '600' }}>Signed in on this device</Body>
-        <Small>
-          You joined with a link and a name, so this phone remembers you. If you clear this browser's data or switch devices, open an invite link
-          again to get back into your circles.
-        </Small>
-      </Card>
     </Screen>
   );
 }
