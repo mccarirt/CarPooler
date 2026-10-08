@@ -108,37 +108,9 @@ export default function RideDay() {
       const t = setInterval(step, 1000);
       return () => clearInterval(t);
     }
-    if (Platform.OS !== 'web' || !navigator.geolocation) {
-      gpsDebug.geo = 'this browser cannot share location';
-      return;
-    }
-    let last = 0;
-    gpsDebug.watching = true;
-    gpsDebug.geo = 'waiting for a location fix (the browser may be asking permission)';
-    const w = navigator.geolocation.watchPosition(
-      (pos) => {
-        gpsDebug.geo = 'getting location, accurate to ' + Math.round(pos.coords.accuracy) + ' m';
-        gpsDebug.lastFixAt = Date.now();
-        if (Date.now() - last < 3000) return;
-        last = Date.now();
-        publishPosition(id, key, uid, pos.coords.latitude, pos.coords.longitude, false)
-          .then(() => {
-            gpsDebug.publish = 'sent OK';
-            gpsDebug.lastSentAt = Date.now();
-          })
-          .catch((e: unknown) => {
-            gpsDebug.publish = 'FAILED to send: ' + (e instanceof Error ? e.message : String(e));
-          });
-      },
-      (err) => {
-        gpsDebug.geo = 'location blocked or unavailable (code ' + err.code + '): ' + err.message;
-      },
-      { enableHighAccuracy: true, maximumAge: 2000 },
-    );
-    return () => {
-      gpsDebug.watching = false;
-      navigator.geolocation.clearWatch(w);
-    };
+    // Real location sharing lives in LocationSharer (mounted app-wide), so it keeps going if the
+    // driver leaves this screen. Only the demo driver runs here.
+    return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, route, run?.simulated, id, key, uid]);
 
@@ -425,6 +397,8 @@ export default function RideDay() {
               </View>
             )}
 
+            {isDriver && started && !run?.simulated && <SharingBanner />}
+
             {/* ride-state tracker */}
             <View style={{ gap: 6 }}>
               <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -656,4 +630,37 @@ function Announcer({ onFire }: { onFire: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
+}
+
+// Tells the driver, in plain words, whether the family can see the car. Reads what LocationSharer reports.
+function SharingBanner() {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 2000);
+    return () => clearInterval(t);
+  }, []);
+  const blocked = gpsDebug.geo.startsWith('location blocked') || gpsDebug.geo.startsWith('this browser');
+  const failed = gpsDebug.publish.startsWith('FAILED');
+  const sending = Date.now() - gpsDebug.lastSentAt < 20000;
+  let text = 'Starting to share your location…';
+  let bg: string = colors.sunk;
+  let fg: string = colors.inkSoft;
+  if (blocked) {
+    text = 'Your phone is not sharing its location, so the family cannot see the car. Allow location for this site in your browser settings, then reopen the app.';
+    bg = '#FBE9CF';
+    fg = '#8A5300';
+  } else if (failed) {
+    text = 'Your location could not be sent. Check your connection. The ride still works.';
+    bg = '#FBE9CF';
+    fg = '#8A5300';
+  } else if (sending) {
+    text = 'Sharing your location with the family';
+    bg = colors.okSoft;
+    fg = colors.ok;
+  }
+  return (
+    <View style={{ backgroundColor: bg, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm + 2 }}>
+      <Text style={[font.label, { color: fg }]}>{text}</Text>
+    </View>
+  );
 }
