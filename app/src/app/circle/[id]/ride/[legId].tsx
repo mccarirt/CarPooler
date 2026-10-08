@@ -247,7 +247,10 @@ export default function RideDay() {
     await announce(to === 'picked_up' ? 'picked_up' : 'dropped_off', { kidName: kidName(kidId) });
   }
   // Tell the family at the next stop that we are almost there, once per stop.
-  const shouldAnnounceArriving = isDriver && started && !run?.arrived && nearNext && run?.arrivingStop !== stopIndex;
+  // If the ride has only just started and the driver is already at the first stop (starting from
+  // home, say), there is nothing to announce.
+  const justStartedAtFirstStop = stopIndex === 0 && !!run?.startedAt && Date.now() - run.startedAt < 60000;
+  const shouldAnnounceArriving = isDriver && started && !run?.arrived && nearNext && run?.arrivingStop !== stopIndex && !justStartedAtFirstStop;
   const announceArriving = () => {
     patchRun(id, key, { arrivingStop: stopIndex }).catch(() => {});
     announce('arriving', { stopLabel: nextStop.label });
@@ -345,7 +348,7 @@ export default function RideDay() {
                     <Small>{driver.car}</Small>
                   </View>
                 ) : (
-                  <Small>{isDriver ? 'Add your car on the welcome screen so kids can spot it' : 'Driving this ride'}</Small>
+                  <Small>{isDriver ? 'Add your car from the home screen so kids can spot it' : 'Driving this ride'}</Small>
                 )}
               </View>
             </View>
