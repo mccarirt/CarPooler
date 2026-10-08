@@ -39,6 +39,7 @@ export default function RideDay() {
   const [simulate, setSimulate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lateOpen, setLateOpen] = useState(false);
+  const [farArmed, setFarArmed] = useState(false); // first tap when far from the stop only arms the button
   const sheetRef = useRef<ScrollView>(null);
   const [, tick] = useState(0);
 
@@ -116,6 +117,8 @@ export default function RideDay() {
     return () => navigator.geolocation.clearWatch(w);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, route, run?.simulated, id, key, uid]);
+
+  useEffect(() => setFarArmed(false), [run?.stopIndex]);
 
   // Each time the ride moves on, bring the sheet back to the top so the next thing to do is in view.
   useEffect(() => {
@@ -256,7 +259,11 @@ export default function RideDay() {
 
   async function primary() {
     if (!uid) return;
-    if (prim.kind === 'confirm') return confirmKids(Object.fromEntries(Object.entries(actions).map(([k, a]) => [k, a.to])));
+    if (prim.kind === 'confirm') {
+      // Clearly not at the stop yet (more than ~0.4 mi away)? Ask for a second tap before confirming.
+      if (remaining !== null && remaining > 600 && !farArmed) return setFarArmed(true);
+      return confirmKids(Object.fromEntries(Object.entries(actions).map(([k, a]) => [k, a.to])));
+    }
     setBusy(true);
     try {
       if (prim.kind === 'start') {
@@ -492,7 +499,7 @@ export default function RideDay() {
               </View>
             )}
             {isDriver && !completed ? (
-              <Button label={prim.label} onPress={primary} loading={busy} />
+              <Button label={farArmed && prim.kind === 'confirm' ? `Not there yet. ${prim.label} anyway?` : prim.label} onPress={primary} loading={busy} />
             ) : completed ? (
               <Body soft style={{ textAlign: 'center' }}>This ride is finished. Nothing is tracked after it ends.</Body>
             ) : (
