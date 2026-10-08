@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
 import { addDays, mondayOf, shortDate, toISO } from '@/lib/schedule';
 import { WeekFeed } from '@/components/TodayFeed';
-import { Body, Card, Heading, Screen, Small, Title } from '@/components/ui';
+import { EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 // Week: what is coming up, across every circle. The Sunday-night planning view.
@@ -26,7 +26,7 @@ export default function Week() {
             {shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}
           </Heading>
           {weekStart !== thisWeek && (
-            <Pressable onPress={() => setWeekStart(thisWeek)}>
+            <Pressable accessibilityRole="button" onPress={() => setWeekStart(thisWeek)} style={{ minHeight: 44, justifyContent: 'center' }}>
               <Small style={{ color: colors.accent }}>Back to this week</Small>
             </Pressable>
           )}
@@ -35,13 +35,14 @@ export default function Week() {
       </View>
 
       {rows === null ? (
-        <ActivityIndicator color={colors.accent} />
+        <SkeletonCard />
       ) : rows.length === 0 ? (
-        <Card style={{ alignItems: 'flex-start', gap: space.sm }}>
-          <CalendarDays size={24} color={colors.accent} strokeWidth={2} />
-          <Heading>Nothing to plan yet</Heading>
-          <Body soft>Once you are in a circle with rides set up, your whole week shows up here.</Body>
-        </Card>
+        <EmptyState
+          icon={<CalendarDays size={24} color={colors.accent} strokeWidth={2} />}
+          title="Your week starts here"
+          body="Once you are in a circle with rides set up, every ride for the week shows up in one list."
+          action={{ label: 'Go to Circles', variant: 'secondary', onPress: () => router.push('/circles') }}
+        />
       ) : (
         <>
           <WeekFeed circleIds={rows.map((r) => r.id)} weekStart={weekStart} />

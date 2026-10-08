@@ -203,8 +203,8 @@ export default function LegEditor() {
         </Wrap>
       )}
 
-      <Field label="Starts around" value={windowStart} onChangeText={setWindowStart} placeholder={direction === 'AM' ? '7:40 AM' : '2:45 PM'} hint={direction === 'AM' ? 'When the driver starts picking kids up.' : 'When school lets out.'} />
-      <Field label="Done by (optional)" value={windowEnd} onChangeText={setWindowEnd} placeholder={direction === 'AM' ? '8:15 AM' : '3:30 PM'} />
+      <Field label="Starts around" value={windowStart} onChangeText={setWindowStart} placeholder={direction === 'AM' ? '7:40 AM' : '2:45 PM'} hint="When the ride begins. The driver's Start button appears an hour before." />
+      <Field label="Ends around (optional)" hint="Only shown in the ride list. Nothing happens if the ride runs past it." value={windowEnd} onChangeText={setWindowEnd} placeholder={direction === 'AM' ? '8:15 AM' : '3:30 PM'} />
 
       <Heading>Stops, in order</Heading>
       <Small>You know the sensible order, so enter it here. Times are your best estimate and become live ETAs on ride day.</Small>
@@ -220,7 +220,7 @@ export default function LegEditor() {
             <IconBtn label="Remove stop" disabled={stops.length === 1} onPress={() => { setTouched(true); setStops((x) => x.filter((_, j) => j !== i)); }} icon={<Trash2 size={18} color={colors.danger} />} />
           </View>
           <Field label="Where" value={s.label} onChangeText={(v) => patchStop(i, { label: v })} placeholder={(direction === 'AM' ? i === stops.length - 1 : i === 0) ? 'Lincoln Elementary' : 'The Hendersons'} />
-          <Field label="Time" value={s.time} onChangeText={(v) => patchStop(i, { time: v })} placeholder="7:50 AM" />
+          <Field label="Planned time here" hint="The ride screen compares the car with this to say on time, early or late." value={s.time} onChangeText={(v) => patchStop(i, { time: v })} placeholder="7:50 AM" />
           <Field
             label="Street address (for the map)"
             value={s.address}

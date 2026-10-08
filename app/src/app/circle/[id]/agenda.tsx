@@ -51,7 +51,7 @@ export default function Agenda() {
             {shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}
           </Heading>
           {weekStart !== mondayOf(today) && (
-            <Pressable onPress={() => setWeekStart(mondayOf(today))}>
+            <Pressable accessibilityRole="button" onPress={() => setWeekStart(mondayOf(today))} style={{ minHeight: 44, justifyContent: 'center' }}>
               <Small style={{ color: colors.accent }}>Back to this week</Small>
             </Pressable>
           )}
@@ -215,7 +215,7 @@ function DayEditor({ circleId, date, initialNote, skipped, onDone }: { circleId:
       <Field label="Why no carpool? (optional)" value={note} onChangeText={setNote} placeholder="Teacher workday" />
       <ErrorNote message={error} />
       <Button label={skipped ? 'Save note' : 'Skip this whole day'} loading={busy} onPress={() => run({ skip: true, ...(note.trim() ? { note: note.trim() } : {}) })} />
-      {skipped && <Button variant="secondary" label="Bring the day back" disabled={busy} onPress={() => run({})} />}
+      {skipped && <Button variant="secondary" label="Restore this day" disabled={busy} onPress={() => run({})} />}
     </Card>
   );
 }
@@ -255,7 +255,7 @@ function LegDayEditor({
   return (
     <Card style={{ gap: space.md }}>
       <Field label="Starts around" value={s} onChangeText={setS} />
-      <Field label="Done by" value={e} onChangeText={setE} />
+      <Field label="Ends around (optional)" value={e} onChangeText={setE} />
       <View style={{ gap: space.sm }}>
         <Body style={{ fontWeight: '600' }}>Who drives this day</Body>
         <Small>Changes only this day. The normal driver goes back to normal the next day.</Small>

@@ -57,7 +57,7 @@ export default function Join() {
       <Screen back>
         <Title>That link does not work</Title>
         <Body soft>It may have been copied wrong or the circle was changed. Ask whoever invited you to send it again.</Body>
-        <Button label="Go to home" variant="secondary" onPress={() => router.replace('/')} />
+        <Button label="Back to the app" variant="secondary" onPress={() => router.replace('/')} />
       </Screen>
     );
 

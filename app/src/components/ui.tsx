@@ -222,6 +222,57 @@ export function SkeletonCard({ lines = 2 }: { lines?: number }) {
   );
 }
 
+// What a screen says when there is nothing to show yet: a small icon, one plain sentence of what this
+// is, and (when there is a next step) one button for it.
+export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: { label: string; onPress: () => void; icon?: ReactNode; variant?: 'primary' | 'secondary' } }) {
+  return (
+    <FadeIn>
+      <View style={[s.card, { alignItems: 'flex-start', gap: space.sm, padding: space.lg }]}>
+        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>{icon}</View>
+        <Heading>{title}</Heading>
+        <Body soft>{body}</Body>
+        {action && (
+          <View style={{ alignSelf: 'stretch', marginTop: space.xs }}>
+            <Button label={action.label} icon={action.icon} variant={action.variant} onPress={action.onPress} />
+          </View>
+        )}
+      </View>
+    </FadeIn>
+  );
+}
+
+// Eases content in as it arrives (a short fade and rise), so lists settle instead of popping.
+export function FadeIn({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, { toValue: 1, duration: 240, delay, useNativeDriver: false }).start();
+  }, [t, delay]);
+  return <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}>{children}</Animated.View>;
+}
+
+// A short confirmation that appears, holds, and fades by itself ("Leia picked up").
+export function Flash({ text, id }: { text: string; id: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    t.setValue(0);
+    Animated.sequence([
+      Animated.timing(t, { toValue: 1, duration: 160, useNativeDriver: false }),
+      Animated.delay(1700),
+      Animated.timing(t, { toValue: 0, duration: 300, useNativeDriver: false }),
+    ]).start();
+  }, [id, t]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessibilityLiveRegion="polite"
+      style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }], flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.ink, borderRadius: radius.pill, paddingVertical: 10, paddingHorizontal: space.md }}
+    >
+      <Check size={18} color="#fff" strokeWidth={3} />
+      <Text style={[font.label, { color: '#fff' }]}>{text}</Text>
+    </Animated.View>
+  );
+}
+
 export function Centered({ children }: { children: ReactNode }) {
   return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.lg, backgroundColor: colors.bg }}>{children}</View>;
 }
@@ -286,7 +337,7 @@ export function Chip({ label, on, onPress, small }: { label: string; on: boolean
       accessibilityState={{ selected: on }}
       onPress={onPress}
       style={{
-        minHeight: small ? 40 : 48,
+        minHeight: small ? 44 : 48,
         paddingHorizontal: space.md,
         borderRadius: radius.pill,
         justifyContent: 'center',

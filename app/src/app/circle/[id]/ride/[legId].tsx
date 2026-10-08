@@ -15,7 +15,7 @@ import { useSession } from '@/lib/session';
 import { gpsDebug } from '@/lib/gpsDebug';
 import { useCircle } from '@/lib/useCircle';
 import Map from '@/components/Map';
-import { Avatar, Body, Button, Card, Centered, Chip, Heading, Small, Wrap } from '@/components/ui';
+import { Avatar, Body, Button, Card, Centered, Chip, Flash, Heading, Small, Wrap } from '@/components/ui';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { colors, font, radius, space } from '@/theme';
 
@@ -47,6 +47,7 @@ export default function RideDay() {
   const [fixError, setFixError] = useState<string | null>(null);
   const [farArmed, setFarArmed] = useState(false); // first tap when far from the stop only arms the button
   const sheetRef = useRef<ScrollView>(null);
+  const [flash, setFlash] = useState({ text: '', id: 0 }); // a brief confirmation over the map
   const [bigMap, setBigMap] = useState(false); // fold the sheet away so the map fills the screen
   const [, tick] = useState(0);
 
@@ -285,6 +286,11 @@ export default function RideDay() {
         patch.completedAt = Date.now();
       }
       await patchRun(id, key, patch);
+      {
+        const verb = (to: KidState) => (to === 'picked_up' ? 'picked up' : to === 'absent' ? 'marked absent' : 'dropped off');
+        const names = Object.keys(updates).map((k) => kidName(k).split(' ')[0]);
+        setFlash((f) => ({ text: names.join(' and ') + ' ' + verb(Object.values(updates)[0]), id: f.id + 1 }));
+      }
       for (const [k, to] of Object.entries(updates)) await announce(to === 'picked_up' ? 'picked_up' : 'dropped_off', { kidName: kidName(k) });
       if (next === 'complete') {
         await clearPosition(id, key);
@@ -343,7 +349,12 @@ export default function RideDay() {
         <Map stops={mapStops} route={route?.coords ?? null} car={started && live ? { lat: live.lat, lng: live.lng } : null} routeColor={colorFor(driverUid ?? 'x', driver?.color).fg} carIcon={driver?.icon} />
         {mapStops.length === 0 && (
           <View style={{ position: 'absolute', left: space.md, right: space.md, top: 72, backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md }}>
-            <Small>No stop addresses yet, so there is nothing to draw. The organizer can add them when editing this ride.</Small>
+            <Small>No map yet: this ride's stops have no addresses. An organizer can add them in the ride's settings.</Small>
+          </View>
+        )}
+        {flash.id > 0 && (
+          <View pointerEvents="none" style={{ position: 'absolute', zIndex: 10, top: space.md + 6, left: 72, right: space.md, alignItems: 'flex-start' }}>
+            <Flash text={flash.text} id={flash.id} />
           </View>
         )}
         <Pressable
@@ -533,7 +544,7 @@ export default function RideDay() {
           <View style={{ width: '100%', maxWidth: 560, gap: space.sm }}>
             {isDriver && !run && route && !pastUntracked && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-                <Chip small label="Simulated driver (demo)" on={simulate} onPress={() => setSimulate((s) => !s)} />
+                <Chip small label="Practice drive (no GPS)" on={simulate} onPress={() => setSimulate((s) => !s)} />
                 <Small style={{ flex: 1 }}>Try the ride without driving.</Small>
               </View>
             )}

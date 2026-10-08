@@ -10,7 +10,7 @@ import { Broadcast, newestFirst, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { useDismissed } from '@/lib/dismissed';
 import { initialKids, kidIdsOf } from '@/lib/ride';
-import { Avatar, Body, Button, Card, Heading, SkeletonCard, Small } from '@/components/ui';
+import { Avatar, Body, Button, Card, EmptyState, FadeIn, Heading, SkeletonCard, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
 type Item = {
@@ -221,13 +221,12 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
       )}
 
       {ready && nothing && (
-        <Card style={{ alignItems: 'flex-start', gap: space.sm }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-            <Sun size={24} color={colors.accent} strokeWidth={2} />
-          </View>
-          <Heading>Nothing on today</Heading>
-          <Body soft>No rides are scheduled today. Check the Week tab to see what is coming up.</Body>
-        </Card>
+        <EmptyState
+          icon={<Sun size={24} color={colors.accent} strokeWidth={2} />}
+          title="A clear day"
+          body="No rides today. Tomorrow and the days after are on the Week tab."
+          action={{ label: 'See the week', variant: 'secondary', onPress: () => router.push('/week') }}
+        />
       )}
 
       {swaps.length > 0 && uid && (
@@ -278,7 +277,8 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
         <View style={{ gap: space.sm }}>
           <Heading>Your kids today</Heading>
           {arcs.map((a) => (
-            <Card key={a.key} style={{ gap: space.sm }}>
+            <FadeIn key={a.key}>
+            <Card style={{ gap: space.sm }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
                 <Avatar name={a.kidName} size={44} id={a.kidId} colorKey={a.kidColor} />
                 <View style={{ flex: 1 }}>
@@ -308,6 +308,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
                 ))}
               </View>
             </Card>
+            </FadeIn>
           ))}
         </View>
       )}
@@ -401,6 +402,7 @@ function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
   }
 
   return (
+    <FadeIn>
     <Card onPress={it.status === 'skipped' ? undefined : open} style={{ gap: space.sm, paddingVertical: space.sm + 4, opacity: it.status === 'skipped' ? 0.5 : 1 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <Avatar name={it.driverName} size={44} id={it.driverId ?? undefined} colorKey={it.driverColor} />
@@ -434,6 +436,7 @@ function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
       )}
       {it.status === 'started' && <Button label={it.mine ? 'Back to the ride' : 'Watch live'} onPress={open} />}
     </Card>
+    </FadeIn>
   );
 }
 

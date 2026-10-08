@@ -23,7 +23,7 @@ export default function Debug() {
         If something looks wrong, tap Copy under a circle and paste the result into your message. It shows the rides, children and ride records this phone is working
         from. It contains names of rides and children but no passwords or login details.
       </Body>
-      {rows === null && <Small>Loading…</Small>}
+      {rows === null && <Small>Checking…</Small>}
       {rows?.map((r) => <CircleReport key={r.id} circleId={r.id} />)}
     </Screen>
   );
@@ -75,7 +75,7 @@ function CircleReport({ circleId }: { circleId: string }) {
     };
   }, [circleId, circle?.inviteCode, startedKeys]);
 
-  if (!circle) return <Small>Loading circle…</Small>;
+  if (!circle) return <Small>Checking this circle…</Small>;
 
   const today = toISO(new Date());
   const nameOfUid = (u?: string | null) => members.find((m) => m.uid === u)?.name ?? short(u);

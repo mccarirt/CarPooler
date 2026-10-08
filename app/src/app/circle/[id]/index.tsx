@@ -7,7 +7,7 @@ import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
-import { Avatar, Body, Button, Card, Centered, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
+import { Avatar, Body, Button, Card, Centered, EmptyState, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 export default function CircleDetail() {
@@ -126,13 +126,12 @@ export default function CircleDetail() {
       <Gap size="xs" />
       <Heading>Rides</Heading>
       {legList.length === 0 ? (
-        <Card style={{ gap: space.sm }}>
-          <Body soft>
-            {isAdmin
-              ? 'No rides yet. Add the morning dropoff or afternoon pickup and the app will rotate drivers for you.'
-              : 'The organizer has not set up any rides yet.'}
-          </Body>
-        </Card>
+        <EmptyState
+          icon={<CalendarDays size={24} color={colors.accent} strokeWidth={2} />}
+          title="No rides yet"
+          body={isAdmin ? 'Add the morning dropoff or the afternoon pickup. The app takes turns between drivers for you.' : 'The organizer has not set up any rides yet. They will show up here.'}
+          action={isAdmin ? { label: 'Add the first ride', icon: <Plus size={22} color="#fff" strokeWidth={2.5} />, onPress: () => router.push('/circle/' + id + '/leg/new') } : undefined}
+        />
       ) : (
         legList.map(([legId, leg]) => {
           const riders = kidIdsOf(leg.stops).flatMap((kidId) => {

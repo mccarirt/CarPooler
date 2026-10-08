@@ -1,9 +1,9 @@
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronRight, Plus, Users } from 'lucide-react-native';
 import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
-import { Body, Button, Card, Heading, Screen, Small, Title } from '@/components/ui';
+import { Button, Card, EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 // Circles: who I am driving with.
@@ -15,18 +15,13 @@ export default function Circles() {
       <View style={{ height: space.sm }} />
       <Title>Your circles</Title>
       {rows === null ? (
-        <ActivityIndicator color={colors.accent} />
+        <SkeletonCard />
       ) : rows.length === 0 ? (
-        <Card style={{ alignItems: 'flex-start', gap: space.sm }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-            <Users size={24} color={colors.accent} strokeWidth={2} />
-          </View>
-          <Heading>No circles yet</Heading>
-          <Body soft>
-            Start one for your school or team, then send the invite link to the other families. If someone already sent you a link, open it
-            and you will land in their circle.
-          </Body>
-        </Card>
+        <EmptyState
+          icon={<Users size={24} color={colors.accent} strokeWidth={2} />}
+          title="No circles yet"
+          body="Start one for your school or team, then send the invite link to the other families. If someone already sent you a link, open it and you will land in their circle."
+        />
       ) : (
         rows.map((r) => (
           <Card key={r.id} onPress={() => router.push(`/circle/${r.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>

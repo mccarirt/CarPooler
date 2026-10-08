@@ -45,7 +45,7 @@ export default function Me() {
         <Body soft>Children you add to a circle show up here.</Body>
       )}
 
-      <Button variant="ghost" label="Diagnostics (for troubleshooting)" onPress={() => router.push('/debug')} />
+      <Button variant="ghost" label="Something wrong? Copy a report" onPress={() => router.push('/debug')} />
 
       <Card style={{ gap: space.xs, backgroundColor: colors.sunk, borderColor: colors.sunk }}>
         <Body style={{ fontWeight: '600' }}>Signed in on this device</Body>
@@ -112,7 +112,7 @@ function HouseholdSection({ circleIds }: { circleIds: { id: string; name: string
   return (
     <Card style={{ gap: space.sm }}>
       <Heading>Your household</Heading>
-      <Small>The other parents who share your children. They see the kids' days on their Today tab and can edit their profiles. Pick them once.</Small>
+      <Small>The other parents who share your children. They see your children on their Today screen and can edit their profiles. You only set this once.</Small>
       {circleIds.map((c) => (
         <HouseholdPeople key={c.id} circleId={c.id} circleName={c.name} uid={uid} household={household} showName={circleIds.length > 1} busy={busy} onToggle={toggle} />
       ))}
