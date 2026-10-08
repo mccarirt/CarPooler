@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { colorFor } from '@/lib/palette';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -339,7 +340,7 @@ export default function RideDay() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* ---------- map ---------- */}
       <View style={{ flex: 1, minHeight: 220 }}>
-        <Map stops={mapStops} route={route?.coords ?? null} car={started && live ? { lat: live.lat, lng: live.lng } : null} />
+        <Map stops={mapStops} route={route?.coords ?? null} car={started && live ? { lat: live.lat, lng: live.lng } : null} routeColor={colorFor(driverUid ?? 'x', driver?.color).fg} carIcon={driver?.icon} />
         {mapStops.length === 0 && (
           <View style={{ position: 'absolute', left: space.md, right: space.md, top: 72, backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md }}>
             <Small>No stop addresses yet, so there is nothing to draw. The organizer can add them when editing this ride.</Small>

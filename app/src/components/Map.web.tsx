@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { colors } from '@/theme';
+import { vehicleFor } from '@/lib/vehicles';
 import type { MapProps } from './mapTypes';
 
 // Standard OpenStreetMap tiles: free, no key (fine for light prototype use; revisit before a wide launch).
@@ -21,13 +22,15 @@ function injectStyles() {
       display:flex;align-items:center;justify-content:center;font:800 14px system-ui,sans-serif;box-sizing:border-box}
     .cc-pin.current{background:${colors.accent};border-color:${colors.accent};color:#fff;transform:scale(1.15)}
     .cc-pin.done{background:${colors.ink};color:#fff;opacity:.55}
-    .cc-car{width:28px;height:28px;border-radius:14px;background:${colors.accent};border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);box-sizing:border-box}
+    .cc-car{width:28px;height:28px;border-radius:14px;border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);box-sizing:border-box}
+    .cc-car.v{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center}
     .leaflet-tile-pane{filter:saturate(.65) sepia(.18) brightness(1.03)}
   `;
   document.head.appendChild(style);
 }
 
-export default function Map({ stops, route, car }: MapProps) {
+export default function Map({ stops, route, car, routeColor, carIcon }: MapProps) {
+  const tint = routeColor ?? colors.accent;
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -35,6 +38,7 @@ export default function Map({ stops, route, car }: MapProps) {
   const fitted = useRef('');
   const hasStops = useRef(false);
   const zooming = useRef(false);
+  const iconKey = useRef('');
   const glide = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -72,7 +76,7 @@ export default function Map({ stops, route, car }: MapProps) {
     hasStops.current = stops.length > 0;
     if (route && route.length > 1) {
       L.polyline(route, { color: colors.ink, weight: 7, opacity: 0.12 }).addTo(g);
-      L.polyline(route, { color: colors.accent, weight: 5, opacity: 0.95 }).addTo(g);
+      L.polyline(route, { color: tint, weight: 5, opacity: 0.95 }).addTo(g);
     }
     stops.forEach((s) => {
       const cls = s.current ? 'cc-pin current' : s.done ? 'cc-pin done' : 'cc-pin';
@@ -87,7 +91,7 @@ export default function Map({ stops, route, car }: MapProps) {
       const pts: L.LatLngExpression[] = route && route.length > 1 ? route : stops.map((s) => [s.lat, s.lng]);
       m.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 16 });
     }
-  }, [stops, route]);
+  }, [stops, route, tint]);
 
   // Moving driver marker.
   useEffect(() => {
@@ -98,26 +102,38 @@ export default function Map({ stops, route, car }: MapProps) {
       carMarker.current = null;
       return;
     }
+    const v = vehicleFor(carIcon);
+    const size = v.svg ? 40 : 28;
+    const icon = L.divIcon({
+      className: 'cc-car-wrap',
+      html: `<div class="cc-car${v.svg ? ' v' : ''}" style="background:${tint}">${v.svg ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${v.svg}</svg>` : ''}</div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+    const look = tint + '|' + v.key;
+    const changed = iconKey.current !== look;
     if (!carMarker.current) {
       carMarker.current = L.marker([car.lat, car.lng], {
-        icon: L.divIcon({ className: 'cc-car-wrap', html: '<div class="cc-car"></div>', iconSize: [28, 28], iconAnchor: [14, 14] }),
+        icon,
         zIndexOffset: 1000,
         title: 'Driver',
       }).addTo(m);
     } else {
       // Glide to the new GPS point, but only for this move. A standing transition also animates the
       // re-positioning Leaflet does after a pinch-zoom, which made the car slide across the map.
-      const icon = carMarker.current.getElement();
-      if (icon && !zooming.current) {
-        icon.style.transition = 'transform 1.1s linear';
+      if (changed) carMarker.current.setIcon(icon);
+      const el2 = carMarker.current.getElement();
+      if (el2 && !zooming.current) {
+        el2.style.transition = 'transform 1.1s linear';
         clearTimeout(glide.current);
-        glide.current = setTimeout(() => (icon.style.transition = ''), 1200);
+        glide.current = setTimeout(() => (el2.style.transition = ''), 1200);
       }
       carMarker.current.setLatLng([car.lat, car.lng]);
     }
+    iconKey.current = look;
     // Nothing pinned to frame the view? Follow the car so it is always on screen.
     if (!hasStops.current) m.setView([car.lat, car.lng], Math.max(m.getZoom(), 15), { animate: true });
-  }, [car]);
+  }, [car, tint, carIcon]);
 
   // zIndex 0 boxes the map's own layers in, so nothing on top of it (the back button) gets covered.
   return <div ref={el} style={{ position: 'absolute', inset: 0, zIndex: 0, background: colors.sunk }} />;

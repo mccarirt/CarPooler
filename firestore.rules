@@ -190,9 +190,9 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.circleId == cid)
         );
 
-        // You can change your own name, car and avatar color, nothing else (not your role).
+        // You can change your own name, car, avatar color and map icon, nothing else (not your role).
         allow update: if signedIn() && request.auth.uid == uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'car', 'color']);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'car', 'color', 'icon']);
         // You can leave a circle.
         allow delete: if signedIn() && request.auth.uid == uid;
       }

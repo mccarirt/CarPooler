@@ -18,9 +18,9 @@ import { auth, db, rtdb } from './firebase';
 
 // A saved place: your home, the school, the club. Saved once on your own profile, so you never retype it.
 export type Place = { label: string; address: string; lat: number; lng: number };
-export type Profile = { name: string; car: string; color?: string; household?: string[]; places?: Place[] };
+export type Profile = { name: string; car: string; color?: string; icon?: string; household?: string[]; places?: Place[] };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
-export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member'; color?: string };
+export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member'; color?: string; icon?: string };
 export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[] };
 export type Kid = {
   name: string;
@@ -67,6 +67,7 @@ export async function createCircle(name: string, profile: Profile) {
     name: profile.name,
     car: profile.car,
     ...(profile.color ? { color: profile.color } : {}),
+    ...(profile.icon ? { icon: profile.icon } : {}),
     role: 'admin',
   });
   batch.set(doc(db, 'invites', code), { circleId: circleRef.id, circleName });
@@ -91,6 +92,7 @@ export async function joinCircle(code: string, profile: Profile) {
     name: profile.name,
     car: profile.car,
     ...(profile.color ? { color: profile.color } : {}),
+    ...(profile.icon ? { icon: profile.icon } : {}),
     role: 'member',
     code,
   });
@@ -234,9 +236,9 @@ export async function setCoOrganizers(circleId: string, uids: string[]) {
 }
 
 // Change your name or car everywhere it is shown: your profile and your card in every circle.
-export async function updateProfileEverywhere(name: string, car: string, color?: string) {
+export async function updateProfileEverywhere(name: string, car: string, color?: string, icon?: string) {
   const uid = await ensureSignedIn();
-  const clean = { name: name.trim(), car: car.trim(), ...(color ? { color } : {}) };
+  const clean = { name: name.trim(), car: car.trim(), ...(color ? { color } : {}), ...(icon ? { icon } : {}) };
   await setDoc(doc(db, 'users', uid), clean, { merge: true });
   const circles = await getDocs(collection(db, 'users', uid, 'memberships'));
   const batch = writeBatch(db);

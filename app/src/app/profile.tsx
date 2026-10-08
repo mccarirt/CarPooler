@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Bus, Car, Circle, Truck } from 'lucide-react-native';
+import { VEHICLES } from '@/lib/vehicles';
 import { updateProfileEverywhere } from '@/lib/data';
 import { colorFor } from '@/lib/palette';
 import { useSession } from '@/lib/session';
 import { Avatar, Body, Button, ColorPicker, ErrorNote, Field, Gap, Heading, leave, Screen, Small, Title } from '@/components/ui';
-import { space } from '@/theme';
+import { colors, space } from '@/theme';
 
 export default function EditProfile() {
   const { profile, uid } = useSession();
   const [name, setName] = useState('');
   const [car, setCar] = useState('');
   const [color, setColor] = useState('');
+  const [icon, setIcon] = useState('dot');
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +24,7 @@ export default function EditProfile() {
       setName(profile.name);
       setCar(profile.car);
       setColor(colorFor(uid, profile.color).key);
+      setIcon(profile.icon ?? 'dot');
       setReady(true);
     }
   }, [profile, uid, ready]);
@@ -29,7 +33,7 @@ export default function EditProfile() {
     setBusy(true);
     setError(null);
     try {
-      await updateProfileEverywhere(name, car, color);
+      await updateProfileEverywhere(name, car, color, icon !== (profile?.icon ?? 'dot') ? icon : undefined);
       leave('/me');
     } catch {
       setError('Could not save. Check your connection and try again.');
@@ -52,6 +56,29 @@ export default function EditProfile() {
           <View style={{ flex: 1 }}>
             <ColorPicker value={color} onChange={setColor} />
           </View>
+        </View>
+      </View>
+      <View style={{ gap: space.sm }}>
+        <Heading>Your car on the map</Heading>
+        <Small>Shown in your color when you drive, and the route line takes your color too.</Small>
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          {VEHICLES.map((v) => {
+            const on = v.key === icon;
+            const Glyph = { dot: Circle, car: Car, van: Bus, truck: Truck }[v.key as 'dot'] ?? Circle;
+            return (
+              <Pressable
+                key={v.key}
+                accessibilityRole="button"
+                accessibilityLabel={v.label}
+                accessibilityState={{ selected: on }}
+                onPress={() => setIcon(v.key)}
+                style={{ flex: 1, minHeight: 72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 3, borderColor: on ? colors.ink : colors.line, backgroundColor: colors.surface }}
+              >
+                <Glyph size={26} color={colorFor(uid ?? 'x', color).fg} strokeWidth={2.25} />
+                <Small style={{ fontSize: 12, color: colors.ink, fontWeight: on ? '700' : '500' }}>{v.label}</Small>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
       <ErrorNote message={error} />

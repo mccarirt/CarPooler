@@ -5,4 +5,6 @@ export type MapProps = {
   stops: MapStop[];
   route: Pt[] | null;
   car: LatLng | null;
+  routeColor?: string; // the driver's color
+  carIcon?: string; // vehicle key, see lib/vehicles
 };
