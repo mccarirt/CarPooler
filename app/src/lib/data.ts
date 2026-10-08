@@ -14,7 +14,7 @@ import {
 import { ref, remove, set } from 'firebase/database';
 import { auth, db, rtdb } from './firebase';
 
-export type Profile = { name: string; car: string; color?: string };
+export type Profile = { name: string; car: string; color?: string; household?: string[] };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
 export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member'; color?: string };
 export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[] };
@@ -247,4 +247,35 @@ export async function renameCircle(circleId: string, name: string) {
   const clean = name.trim();
   await updateDoc(doc(db, 'circles', circleId), { name: clean });
   await updateDoc(doc(db, 'users', uid, 'memberships', circleId), { circleName: clean }).catch(() => {});
+}
+
+// ---------- household ----------
+// A household is the other parents who share your children (a partner, a grandparent who helps).
+// Saving it does two things: it remembers the list on your profile, so every NEW child you add is
+// shared with them automatically, and it updates every child you are already a parent of. Returns how
+// many children changed. Only affects children you are a parent of, and never removes a child's owner.
+export async function setHousehold(next: string[], previous: string[]) {
+  const uid = await ensureSignedIn();
+  await setDoc(doc(db, 'users', uid), { household: next }, { merge: true });
+  const added = next.filter((x) => !previous.includes(x));
+  const removed = previous.filter((x) => !next.includes(x));
+  if (added.length === 0 && removed.length === 0) return 0;
+
+  const circles = await getDocs(collection(db, 'users', uid, 'memberships'));
+  const batch = writeBatch(db);
+  let changed = 0;
+  for (const c of circles.docs) {
+    const kids = await getDocs(collection(db, 'circles', c.id, 'kids'));
+    for (const k of kids.docs) {
+      const kid = k.data() as Kid;
+      const current = guardiansOf(kid);
+      if (!current.includes(uid)) continue;
+      const updated = [...new Set([...current.filter((g) => g === kid.ownerUid || !removed.includes(g)), ...added])];
+      if (updated.length === current.length && updated.every((g) => current.includes(g))) continue;
+      batch.update(k.ref, { guardianUids: updated });
+      changed++;
+    }
+  }
+  if (changed > 0) await batch.commit();
+  return changed;
 }

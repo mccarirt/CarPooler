@@ -52,6 +52,14 @@ export default function KidProfile() {
     setColor((PALETTE.find((c) => !used.has(c.key)) ?? PALETTE[0]).key);
   }, [isNew, picked, circleKids]);
 
+  // A new child starts out shared with everyone in your household (set on the Me tab).
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (!isNew || seeded || !profile) return;
+    setGuardians(profile.household ?? []);
+    setSeeded(true);
+  }, [isNew, seeded, profile]);
+
   if (!ready)
     return (
       <Centered>
