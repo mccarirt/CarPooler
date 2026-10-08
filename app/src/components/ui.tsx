@@ -1,6 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   ScrollView,
   StyleProp,
@@ -131,7 +132,7 @@ export function Card({ children, style, onPress }: { children: ReactNode; style?
   const body = <View style={[s.card, style]}>{children}</View>;
   if (!onPress) return body;
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] }}>
       {body}
     </Pressable>
   );
@@ -193,6 +194,31 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (key
         );
       })}
     </View>
+  );
+}
+
+// A soft pulsing placeholder shown while a screen's data is still arriving, so the page has its shape
+// right away instead of a blank gap or a spinner.
+export function SkeletonCard({ lines = 2 }: { lines?: number }) {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0.45, duration: 800, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <Animated.View accessibilityLabel="Loading" style={[s.card, { opacity: pulse, flexDirection: 'row', alignItems: 'center', gap: space.md }]}>
+      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.sunk }} />
+      <View style={{ flex: 1, gap: space.sm }}>
+        <View style={{ height: 16, width: '60%', borderRadius: 8, backgroundColor: colors.sunk }} />
+        {lines > 1 && <View style={{ height: 12, width: '85%', borderRadius: 6, backgroundColor: colors.sunk }} />}
+      </View>
+    </Animated.View>
   );
 }
 

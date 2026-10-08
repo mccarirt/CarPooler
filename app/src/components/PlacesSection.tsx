@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { Home, MapPin, X } from 'lucide-react-native';
+import { Check, Home, MapPin, X } from 'lucide-react-native';
 import { Place, saveHome, savePlaces, syncHousehold } from '@/lib/data';
 import { useHome } from '@/lib/useHousehold';
 import { geocode } from '@/lib/geo';
@@ -89,7 +89,10 @@ export default function PlacesSection() {
           {address.trim() && !hit && <Button variant="secondary" label="Find on map" loading={busy} onPress={find} />}
           {hit && (
             <>
-              <Small style={{ color: colors.ok, fontWeight: '600' }}>{hit.display.split(',').slice(0, 3).join(',')} ✓</Small>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                <Check size={16} color={colors.ok} strokeWidth={3} />
+                <Small style={{ color: colors.ok, fontWeight: '600', flex: 1 }}>{hit.display.split(',').slice(0, 3).join(',')}</Small>
+              </View>
               <Button label="Save as home" loading={busy} onPress={commitHome} />
             </>
           )}

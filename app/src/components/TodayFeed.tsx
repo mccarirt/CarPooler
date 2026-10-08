@@ -10,7 +10,7 @@ import { Broadcast, newestFirst, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { useDismissed } from '@/lib/dismissed';
 import { initialKids, kidIdsOf } from '@/lib/ride';
-import { Avatar, Body, Button, Card, Heading, Small } from '@/components/ui';
+import { Avatar, Body, Button, Card, Heading, SkeletonCard, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
 type Item = {
@@ -161,7 +161,10 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, today, datesKey]);
 
-  useEffect(() => onReport(circleId, report), [report, circleId, onReport]);
+  // Report only once the circle's data has arrived, so the screen never claims "nothing today" while it is still loading.
+  useEffect(() => {
+    if (circle) onReport(circleId, report);
+  }, [report, circle, circleId, onReport]);
   return null;
 }
 
@@ -169,7 +172,13 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
 function useReports(circleIds: string[]) {
   const [byCircle, setByCircle] = useState<Record<string, Report>>({});
   const onReport = useMemo(() => (id: string, r: Report) => setByCircle((b) => ({ ...b, [id]: r })), []);
-  const ready = circleIds.every((id) => !!byCircle[id]);
+  // A circle that never loads must not hold the screen forever: give up waiting after a few seconds.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
+  const ready = waited || circleIds.every((id) => !!byCircle[id]);
   const reports = circleIds.map((id) => byCircle[id] ?? EMPTY);
   return { reports, onReport, ready };
 }
@@ -202,6 +211,14 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
       {circleIds.map((id) => (
         <Probe key={id} circleId={id} dates={today} onReport={onReport} />
       ))}
+
+      {!ready && (
+        <View style={{ gap: space.sm }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      )}
 
       {ready && nothing && (
         <Card style={{ alignItems: 'flex-start', gap: space.sm }}>

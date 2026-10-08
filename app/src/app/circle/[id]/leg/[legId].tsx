@@ -226,7 +226,7 @@ export default function LegEditor() {
             value={s.address}
             onChangeText={(v) => patchStop(i, { address: v, lat: undefined, lng: undefined, found: undefined })}
             placeholder="123 Maple St, Springfield"
-            hint={s.found ? `${s.found}${s.lat !== undefined ? ' ✓' : ''}` : 'Optional. Without it, this stop shows up in the list but not on the map.'}
+            hint={s.found ? s.found : 'Optional. Without it, this stop shows up in the list but not on the map.'}
           />
           {s.address.trim() && s.lat === undefined && (
             <Button variant="secondary" label="Find on map" loading={finding === i} onPress={() => findStop(i)} />

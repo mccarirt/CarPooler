@@ -19,7 +19,7 @@ function injectStyles() {
   const style = document.createElement('style');
   style.textContent = `
     .cc-pin{width:32px;height:32px;border-radius:16px;background:${colors.surface};color:${colors.ink};border:3px solid ${colors.ink};
-      display:flex;align-items:center;justify-content:center;font:800 14px system-ui,sans-serif;box-sizing:border-box}
+      display:flex;align-items:center;justify-content:center;font:800 14px 'Hanken Grotesk',system-ui,sans-serif;box-sizing:border-box}
     .cc-pin.current{background:${colors.accent};border-color:${colors.accent};color:#fff;transform:scale(1.15)}
     .cc-pin.done{background:${colors.ink};color:#fff;opacity:.55}
     .cc-car{width:28px;height:28px;border-radius:14px;border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);box-sizing:border-box}
