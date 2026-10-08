@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import { Bell, ChevronRight } from 'lucide-react-native';
+import { Bell, ChevronRight, Sun } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
 import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg, Override, overrideKey, prettyDate, rideLabel, runsOn, toISO } from '@/lib/schedule';
@@ -14,6 +14,7 @@ import { colors, radius, space } from '@/theme';
 type Item = {
   key: string;
   circleId: string;
+  circleName: string;
   legId: string;
   date: string;
   title: string;
@@ -29,7 +30,7 @@ type Item = {
   driverUid: string | null;
   normalDriverUid: string | null;
   members: { uid: string; name: string }[];
-  canAssign: boolean; // organizers pick any driver for today
+  canAssign: boolean; // organizers pick any driver for that day
   canAskSub: boolean; // a non-organizer driver can ask for a sub instead
 };
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
@@ -42,48 +43,55 @@ const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [], arcs: 
 const arcSteps = (place: string) => ['Dropoff complete', `At ${place}`, 'Pickup started', 'Home'];
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
-// One invisible probe per circle reports what matters upward, so the home screen can merge
-// everything into a single list across every circle.
-function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string, r: Report) => void }) {
+// One invisible probe per circle reports what matters upward, so a screen can merge everything
+// into a single list across every circle. `dates` is the days whose rides to report: just today
+// for the Today tab, seven days for the Week tab. Reminders, updates, swaps and the kids' day
+// always describe today.
+function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[]; onReport: (id: string, r: Report) => void }) {
   const { uid } = useSession();
   const { circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
-  const date = toISO(new Date());
-  const tomorrow = addDays(date, 1);
+  const today = toISO(new Date());
+  const tomorrow = addDays(today, 1);
+  const datesKey = dates.join(',');
 
   const report = useMemo((): Report => {
     if (!circle) return EMPTY;
     const label = (leg: Leg) => rideLabel(circle.name, leg);
     const entries = Object.entries(legs);
 
-    const items = entries
-      .filter(([, leg]) => runsOn(leg, date))
-      .map(([legId, leg]): Item => {
-        const run = runs[runKey(legId, date)];
-        const skipped = isSkipped(legId, date, overrides, days);
-        const driver = run?.driverUid ?? driverFor(legId, leg, date, rotation, overrides, days);
-        const rideKey = runKey(legId, date);
-        const status = (skipped ? 'skipped' : run?.status ?? 'scheduled') as Item['status'];
-        return {
-          key: `${circleId}_${legId}`,
-          circleId,
-          legId,
-          date,
-          title: leg.name?.trim() || circle.name,
-          dir: dirLabel(leg.direction),
-          start: effectiveWindow(legId, leg, date, overrides).start,
-          driver: driver ? nameOf(driver) : 'No driver yet',
-          mine: driver === uid,
-          status,
-          rideKey,
-          legLabel: label(leg),
-          override: overrides[overrideKey(legId, date)],
-          driverUid: driver ?? null,
-          normalDriverUid: driverFor(legId, leg, date, rotation, { ...overrides, [rideKey]: { ...overrides[rideKey], driverUid: undefined } }, days),
-          members: members.map((m) => ({ uid: m.uid, name: m.name })),
-          canAssign: status === 'scheduled' && isOrganizer(circle, uid),
-          canAskSub: status === 'scheduled' && !isOrganizer(circle, uid) && driver === uid && swaps[rideKey]?.status !== 'open',
-        };
-      });
+    const items = dates.flatMap((date) =>
+      entries
+        .filter(([, leg]) => runsOn(leg, date))
+        .map(([legId, leg]): Item => {
+          const run = runs[runKey(legId, date)];
+          const skipped = isSkipped(legId, date, overrides, days);
+          const driver = run?.driverUid ?? driverFor(legId, leg, date, rotation, overrides, days);
+          const rideKey = runKey(legId, date);
+          const status = (skipped ? 'skipped' : run?.status ?? 'scheduled') as Item['status'];
+          const upcoming = status === 'scheduled' && date >= today;
+          return {
+            key: `${circleId}_${legId}_${date}`,
+            circleId,
+            circleName: circle.name,
+            legId,
+            date,
+            title: leg.name?.trim() || circle.name,
+            dir: dirLabel(leg.direction),
+            start: effectiveWindow(legId, leg, date, overrides).start,
+            driver: driver ? nameOf(driver) : 'No driver yet',
+            mine: driver === uid,
+            status,
+            rideKey,
+            legLabel: label(leg),
+            override: overrides[overrideKey(legId, date)],
+            driverUid: driver ?? null,
+            normalDriverUid: driverFor(legId, leg, date, rotation, { ...overrides, [rideKey]: { ...overrides[rideKey], driverUid: undefined } }, days),
+            members: members.map((m) => ({ uid: m.uid, name: m.name })),
+            canAssign: upcoming && isOrganizer(circle, uid),
+            canAskSub: upcoming && !isOrganizer(circle, uid) && driver === uid && swaps[rideKey]?.status !== 'open',
+          };
+        }),
+    );
 
     // "You drive tomorrow": shown from 5pm the evening before.
     const reminders: Reminder[] =
@@ -102,7 +110,7 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
         : [];
 
     const openSwaps = Object.entries(swaps)
-      .filter(([, s]) => s.status === 'open' && s.date >= date)
+      .filter(([, s]) => s.status === 'open' && s.date >= today)
       .map(([key, swap]) => ({ circleId, key, swap }));
 
     const now = Date.now();
@@ -112,41 +120,50 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
 
     // The day-long custody arc for each of my children (Uber ends at dropoff; a parent's day doesn't).
     const arcs: KidArc[] = [];
-    const live = entries.filter(([legId, leg]) => runsOn(leg, date) && !isSkipped(legId, date, overrides, days));
+    const live = entries.filter(([legId, leg]) => runsOn(leg, today) && !isSkipped(legId, today, overrides, days));
     for (const kid of kids.filter((k) => !!uid && guardiansOf(k).includes(uid))) {
       const has = (dir: 'AM' | 'PM') => live.find(([, leg]) => leg.direction === dir && leg.stops.some((s) => s.kidIds.includes(kid.id)));
       const am = has('AM');
       const pm = has('PM');
       if (!am && !pm) continue;
-      const amRun = am ? runs[runKey(am[0], date)] : undefined;
-      const pmRun = pm ? runs[runKey(pm[0], date)] : undefined;
+      const amRun = am ? runs[runKey(am[0], today)] : undefined;
+      const pmRun = pm ? runs[runKey(pm[0], today)] : undefined;
       const amDone = amRun?.kids?.[kid.id] === 'dropped_off';
       const pmHome = pmRun?.kids?.[kid.id] === 'dropped_off';
       const first = (am ?? pm)!;
       let step = -1;
       const place = (am ?? pm)![1].name?.trim() || 'school'; // where the child spends the middle of the day
-      let label = am ? `Dropoff at ${fmtTime(effectiveWindow(am[0], am[1], date, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], date, overrides).start)}`;
+      let label = am ? `Dropoff at ${fmtTime(effectiveWindow(am[0], am[1], today, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], today, overrides).start)}`;
       let target = first;
       if (pmHome) { step = 3; label = 'Home safe'; target = pm!; }
       else if (pmRun?.status === 'started') { step = 2; label = 'On the way home'; target = pm!; }
       else if (amDone) { step = Date.now() - (amRun?.completedAt ?? 0) < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? `Dropped off at ${place}` : `At ${place}`; target = pm ?? am!; }
       else if (amRun?.status === 'started') { label = 'On the way'; }
-      arcs.push({ key: `${circleId}_${kid.id}`, circleId, legId: target[0], date, kidName: kid.name, step, label, place });
+      arcs.push({ key: `${circleId}_${kid.id}`, circleId, legId: target[0], date: today, kidName: kid.name, step, label, place });
     }
 
     return { items, reminders, swaps: openSwaps, updates, arcs };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, date]);
+  }, [circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, today, datesKey]);
 
   useEffect(() => onReport(circleId, report), [report, circleId, onReport]);
   return null;
 }
 
-export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
-  const { uid, profile } = useSession();
+// Collects the reports from one probe per circle.
+function useReports(circleIds: string[]) {
   const [byCircle, setByCircle] = useState<Record<string, Report>>({});
   const onReport = useMemo(() => (id: string, r: Report) => setByCircle((b) => ({ ...b, [id]: r })), []);
+  const ready = circleIds.every((id) => !!byCircle[id]);
   const reports = circleIds.map((id) => byCircle[id] ?? EMPTY);
+  return { reports, onReport, ready };
+}
+
+// ---------- the Today tab ----------
+export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
+  const { uid, profile } = useSession();
+  const today = useMemo(() => [toISO(new Date())], []);
+  const { reports, onReport, ready } = useReports(circleIds);
 
   const items = reports.flatMap((r) => r.items).sort((a, b) => a.start.localeCompare(b.start));
   const reminders = reports.flatMap((r) => r.reminders);
@@ -155,14 +172,25 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
   const updates = reports
     .flatMap((r) => r.updates)
     .sort((a, b) => b.b.createdAt - a.b.createdAt)
-    .slice(0, 4);
+    .slice(0, 3);
   const myName = profile?.name ?? 'A parent';
+  const nothing = items.length + reminders.length + arcs.length + swaps.length + updates.length === 0;
 
   return (
     <>
       {circleIds.map((id) => (
-        <Probe key={id} circleId={id} onReport={onReport} />
+        <Probe key={id} circleId={id} dates={today} onReport={onReport} />
       ))}
+
+      {ready && nothing && (
+        <Card style={{ alignItems: 'flex-start', gap: space.sm }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Sun size={24} color={colors.accent} strokeWidth={2} />
+          </View>
+          <Heading>Nothing on today</Heading>
+          <Body soft>No rides are scheduled today. Check the Week tab to see what is coming up.</Body>
+        </Card>
+      )}
 
       {swaps.length > 0 && uid && (
         <View style={{ gap: space.sm }}>
@@ -236,9 +264,9 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
 
       {items.length > 0 && (
         <View style={{ gap: space.sm }}>
-          <Heading>Today</Heading>
+          <Heading>Rides today</Heading>
           {items.map((it) => (
-            <TodayCard key={it.key} it={it} />
+            <RideCard key={it.key} it={it} showCircle={circleIds.length > 1} />
           ))}
         </View>
       )}
@@ -246,12 +274,51 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
   );
 }
 
-function TodayCard({ it }: { it: Item }) {
+// ---------- the Week tab ----------
+export function WeekFeed({ circleIds, weekStart }: { circleIds: string[]; weekStart: string }) {
+  const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const { reports, onReport, ready } = useReports(circleIds);
+  const all = reports.flatMap((r) => r.items);
+  const byDate = (d: string) => all.filter((i) => i.date === d).sort((a, b) => a.start.localeCompare(b.start));
+  const busyDays = dates.filter((d) => byDate(d).length > 0);
+  const today = toISO(new Date());
+
+  return (
+    <>
+      {circleIds.map((id) => (
+        <Probe key={`${id}_${weekStart}`} circleId={id} dates={dates} onReport={onReport} />
+      ))}
+      {ready && busyDays.length === 0 && (
+        <Card style={{ gap: space.sm }}>
+          <Heading>Nothing scheduled this week</Heading>
+          <Body soft>No rides run in these days. Try another week, or add rides from a circle.</Body>
+        </Card>
+      )}
+      {busyDays.map((d) => (
+        <View key={d} style={{ gap: space.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm }}>
+            <Heading>{prettyDate(d)}</Heading>
+            {d === today && (
+              <View style={{ backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 2 }}>
+                <Small style={{ color: '#fff' }}>Today</Small>
+              </View>
+            )}
+          </View>
+          {byDate(d).map((it) => (
+            <RideCard key={it.key} it={it} showCircle={circleIds.length > 1} />
+          ))}
+        </View>
+      ))}
+    </>
+  );
+}
+
+function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
   const { uid, profile } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // An organizer picks today's driver straight from the card. Choosing the normal driver clears the change.
+  // An organizer picks that day's driver straight from the card. Choosing the normal driver clears the change.
   async function assign(driverUid: string) {
     setBusy(true);
     try {
@@ -281,11 +348,14 @@ function TodayCard({ it }: { it: Item }) {
         style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: it.status === 'skipped' ? 0.5 : 1 }}
       >
         <View style={{ width: 72 }}>
-          <Heading>{fmtTime(it.start).replace(' ', ' ')}</Heading>
+          <Heading>{fmtTime(it.start).replace(' ', ' ')}</Heading>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Body style={{ fontWeight: '600' }}>{it.title}</Body>
-          <Small>{it.dir} · {it.mine ? 'You are driving' : `${it.driver} is driving`}</Small>
+          <Small>
+            {showCircle ? `${it.circleName} · ` : ''}
+            {it.dir} · {it.mine ? 'You are driving' : `${it.driver} is driving`}
+          </Small>
         </View>
         <StatusDot status={it.status} />
         {it.status !== 'skipped' && <ChevronRight size={20} color={colors.inkSoft} />}
@@ -297,7 +367,7 @@ function TodayCard({ it }: { it: Item }) {
       )}
       {open && (
         <Card style={{ gap: space.sm }}>
-          <Small>Who drives this one today?</Small>
+          <Small>Who drives this one?</Small>
           <Wrap>
             {it.members.map((m) => (
               <Chip key={m.uid} label={m.name} on={it.driverUid === m.uid} onPress={() => (busy ? undefined : assign(m.uid))} />

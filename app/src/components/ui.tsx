@@ -17,9 +17,10 @@ import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { colors, font, radius, space, tap } from '@/theme';
 
-export function Screen({ children, back, footer }: { children: ReactNode; back?: boolean; footer?: ReactNode }) {
+// `tab`: the screen sits above the bottom tab bar, which already clears the phone's bottom edge.
+export function Screen({ children, back, footer, tab }: { children: ReactNode; back?: boolean; footer?: ReactNode; tab?: boolean }) {
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeAreaView style={s.screen} edges={tab ? ['top', 'left', 'right'] : undefined}>
       <ScrollView
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
