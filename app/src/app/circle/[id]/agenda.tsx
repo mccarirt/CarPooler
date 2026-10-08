@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, CircleSlash } from 'lucide-react-native';
-import { acceptSwap, cancelSwap, requestSwap, saveDay, saveOverride, sendBroadcast } from '@/lib/data';
+import { acceptSwap, cancelSwap, isOrganizer, requestSwap, saveDay, saveOverride, sendBroadcast } from '@/lib/data';
 import { SwapCard } from '@/components/social';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
@@ -26,7 +26,7 @@ export default function Agenda() {
         <ActivityIndicator color={colors.accent} />
       </Centered>
     );
-  const isAdmin = circle.adminUid === uid;
+  const isAdmin = isOrganizer(circle, uid);
 
   const week = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const legEntries = Object.entries(legs);

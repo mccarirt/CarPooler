@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { ChevronRight, Plus, Users } from 'lucide-react-native';
@@ -78,7 +78,12 @@ function Circles({ name }: { name: string }) {
   return (
     <Screen footer={<Button label="Start a circle" icon={<Plus size={22} color="#fff" strokeWidth={2.5} />} onPress={() => router.push('/circle/new')} />}>
       <Gap size="md" />
-      <Small>Hi, {name.split(' ')[0]}</Small>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Small>Hi, {name.split(' ')[0]}</Small>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/profile')} style={{ minHeight: 44, justifyContent: 'center' }} hitSlop={8}>
+          <Small style={{ color: colors.accent, fontWeight: '700' }}>Edit your name or car</Small>
+        </Pressable>
+      </View>
       {rows && rows.length > 0 && <TodayFeed circleIds={rows.map((r) => r.id)} />}
       <Title>Your circles</Title>
       {rows === null ? (

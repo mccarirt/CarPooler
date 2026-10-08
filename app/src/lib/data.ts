@@ -5,6 +5,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -16,7 +17,7 @@ import { auth, db, rtdb } from './firebase';
 export type Profile = { name: string; car: string };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
 export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member' };
-export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[] };
+export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[] };
 export type Kid = {
   name: string;
   notes: string;
@@ -24,6 +25,7 @@ export type Kid = {
   emergencyPhone: string;
   ownerUid: string;
   ownerName: string;
+  guardianUids?: string[]; // other parents of this child; the owner is always a parent
 };
 
 export const PUBLIC_URL = 'https://carpooler-app-seven.vercel.app';
@@ -99,6 +101,7 @@ export async function addKid(circleId: string, kid: Omit<Kid, 'ownerUid' | 'owne
   const ref = await addDoc(collection(db, 'circles', circleId, 'kids'), {
     ...kid,
     ownerUid: uid,
+    guardianUids: [...new Set([uid, ...(kid.guardianUids ?? [])])],
     ownerName: owner.name,
   });
   return ref.id;
@@ -208,5 +211,28 @@ export async function acceptSwap(circleId: string, key: string, me: { uid: strin
     acceptedAt: Date.now(),
   });
   batch.set(doc(db, 'circles', circleId, 'instances', key), { driverUid: me.uid }, { merge: true });
+  await batch.commit();
+}
+
+// ---------- people and permissions ----------
+// An organizer is whoever started the circle plus anyone they promoted.
+export const isOrganizer = (circle: Circle, uid: string | null) =>
+  !!uid && (circle.adminUid === uid || !!circle.coOrganizerUids?.includes(uid));
+
+// A child's parents: whoever added them, plus any other parent listed on the profile.
+export const guardiansOf = (kid: Pick<Kid, 'ownerUid' | 'guardianUids'>) => [...new Set([kid.ownerUid, ...(kid.guardianUids ?? [])])];
+
+export async function setCoOrganizers(circleId: string, uids: string[]) {
+  await updateDoc(doc(db, 'circles', circleId), { coOrganizerUids: uids });
+}
+
+// Change your name or car everywhere it is shown: your profile and your card in every circle.
+export async function updateProfileEverywhere(name: string, car: string) {
+  const uid = await ensureSignedIn();
+  const clean = { name: name.trim(), car: car.trim() };
+  await setDoc(doc(db, 'users', uid), clean);
+  const circles = await getDocs(collection(db, 'users', uid, 'memberships'));
+  const batch = writeBatch(db);
+  circles.docs.forEach((c) => batch.update(doc(db, 'circles', c.id, 'members', uid), clean));
   await batch.commit();
 }

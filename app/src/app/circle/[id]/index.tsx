@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Plus } from 'lucide-react-native';
-import { PUBLIC_URL, saveRotation } from '@/lib/data';
+import { guardiansOf, isOrganizer, PUBLIC_URL, saveRotation, setCoOrganizers } from '@/lib/data';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
@@ -32,7 +32,8 @@ export default function CircleDetail() {
       </Screen>
     );
 
-  const isAdmin = circle.adminUid === uid;
+  const isAdmin = isOrganizer(circle, uid);
+  const isOwner = circle.adminUid === uid; // only the person who started the circle can promote others
   const link = `${Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : PUBLIC_URL}/join/${circle.inviteCode}`;
 
   async function shareLink() {
@@ -173,12 +174,12 @@ export default function CircleDetail() {
                 </View>
               ) : null}
             </View>
-            {m.role === 'admin' && <Small>Organizer</Small>}
+            {isOrganizer(circle, m.uid) && <Small>Organizer</Small>}
           </View>
           {byOwner(m.uid).map((k) => (
             <Card
               key={k.id}
-              onPress={m.uid === uid ? () => router.push(`/circle/${id}/kid/${k.id}`) : undefined}
+              onPress={uid && guardiansOf(k).includes(uid) ? () => router.push(`/circle/${id}/kid/${k.id}`) : undefined}
               style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.bg, padding: space.sm }}
             >
               <Avatar name={k.name} size={40} />
@@ -188,6 +189,18 @@ export default function CircleDetail() {
               </View>
             </Card>
           ))}
+          {isOwner && m.uid !== uid && (
+            <Button
+              variant="ghost"
+              label={circle.coOrganizerUids?.includes(m.uid) ? 'Remove as organizer' : 'Make organizer'}
+              onPress={() =>
+                setCoOrganizers(
+                  id,
+                  circle.coOrganizerUids?.includes(m.uid) ? circle.coOrganizerUids.filter((x) => x !== m.uid) : [...(circle.coOrganizerUids ?? []), m.uid],
+                )
+              }
+            />
+          )}
           {m.uid === uid && (
             <Button variant="ghost" label="Add a child" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => router.push(`/circle/${id}/kid/new`)} />
           )}

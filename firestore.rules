@@ -24,6 +24,22 @@ service cloud.firestore {
         && request.resource.data.driverUid == request.auth.uid;
     }
 
+    // Is the requester an ORGANIZER of circle `cid`? That is the person who started it, or
+    // anyone they have promoted to co-organizer. They must also be a member.
+    function isOrganizer(cid) {
+      let c = get(/databases/$(database)/documents/circles/$(cid)).data;
+      return isMember(cid)
+        && (c.adminUid == request.auth.uid
+            || ('coOrganizerUids' in c && request.auth.uid in c.coOrganizerUids));
+    }
+
+    // Is the requester a PARENT of this child? That is whoever added the child, plus
+    // any other parent they have listed (for example the other parent in the household).
+    function isGuardian(kid) {
+      return request.auth.uid == kid.ownerUid
+        || ('guardianUids' in kid && request.auth.uid in kid.guardianUids);
+    }
+
     // A person's own profile and their list of circles: visible to nobody else.
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
@@ -49,24 +65,31 @@ service cloud.firestore {
       allow read: if isMember(cid);
       // Anyone can start a circle, but only as its organizer.
       allow create: if signedIn() && request.resource.data.adminUid == request.auth.uid;
-      // Only the organizer can edit it, and only its name and rotation order.
-      // (They can't hand the circle to someone else or change the invite code.)
-      allow update: if signedIn() && resource.data.adminUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation']);
+      // Editing the circle:
+      //  - The person who started it can change its name, the driving order, and who the
+      //    co-organizers are. They can't hand the circle to someone else or change the
+      //    invite code.
+      //  - A co-organizer can change the name and the driving order, but can NOT promote
+      //    or demote other organizers.
+      allow update: if signedIn() && (
+        (resource.data.adminUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation', 'coOrganizerUids']))
+        ||
+        (('coOrganizerUids' in resource.data && request.auth.uid in resource.data.coOrganizerUids)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation']))
+      );
       allow delete: if false;
 
-      // The schedule. Every member can see it; only the organizer can change it.
+      // The schedule. Every member can see it; only an organizer can change it.
       // `legs` = the recurring/one-off rides. `instances` = a change to one leg on
       // one day (skip it, new time). `days` = a change to a whole day (holiday).
       match /legs/{legId} {
         allow read: if isMember(cid);
-        allow create, update, delete: if isMember(cid)
-          && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+        allow create, update, delete: if isOrganizer(cid);
       }
       match /instances/{key} {
         allow read: if isMember(cid);
-        allow create, update, delete: if isMember(cid)
-          && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+        allow create, update, delete: if isOrganizer(cid);
 
         // The ONE thing a non-organizer may write here: put THEMSELVES in as the
         // driver, and only when a swap for this exact ride-and-day was accepted by
@@ -136,8 +159,7 @@ service cloud.firestore {
       }
       match /days/{date} {
         allow read: if isMember(cid);
-        allow create, update, delete: if isMember(cid)
-          && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+        allow create, update, delete: if isOrganizer(cid);
       }
 
       match /members/{uid} {
@@ -166,10 +188,10 @@ service cloud.firestore {
         allow read: if isMember(cid);
         // Only a parent can add a child, and it's recorded as theirs.
         allow create: if isMember(cid) && request.resource.data.ownerUid == request.auth.uid;
-        // Only the child's own parent can edit or remove the profile.
-        allow update: if isMember(cid) && resource.data.ownerUid == request.auth.uid
+        // Only a parent of the child (see isGuardian) can edit or remove the profile.
+        allow update: if isMember(cid) && isGuardian(resource.data)
           && request.resource.data.ownerUid == resource.data.ownerUid;
-        allow delete: if isMember(cid) && resource.data.ownerUid == request.auth.uid;
+        allow delete: if isMember(cid) && isGuardian(resource.data);
       }
     }
 

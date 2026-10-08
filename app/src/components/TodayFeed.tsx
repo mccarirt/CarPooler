@@ -5,7 +5,7 @@ import { Bell, ChevronRight } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
 import { addDays, driverFor, effectiveWindow, fmtTime, isSkipped, prettyDate, runsOn, toISO } from '@/lib/schedule';
-import { acceptSwap, cancelSwap, runKey, sendBroadcast } from '@/lib/data';
+import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { Avatar, Body, Card, Heading, Small } from '@/components/ui';
@@ -92,7 +92,7 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
     // The day-long custody arc for each of my children (Uber ends at dropoff; a parent's day doesn't).
     const arcs: KidArc[] = [];
     const live = entries.filter(([legId, leg]) => runsOn(leg, date) && !isSkipped(legId, date, overrides, days));
-    for (const kid of kids.filter((k) => k.ownerUid === uid)) {
+    for (const kid of kids.filter((k) => !!uid && guardiansOf(k).includes(uid))) {
       const has = (dir: 'AM' | 'PM') => live.find(([, leg]) => leg.direction === dir && leg.stops.some((s) => s.kidIds.includes(kid.id)));
       const am = has('AM');
       const pm = has('PM');

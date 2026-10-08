@@ -5,13 +5,17 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { addKid, deleteKid, Kid, updateKid } from '@/lib/data';
 import { useSession } from '@/lib/session';
-import { Avatar, Body, Button, Centered, ErrorNote, Field, Gap, leave, Screen, Small, Title } from '@/components/ui';
+import { Avatar, Body, Button, Centered, Chip, ErrorNote, Field, Gap, leave, Screen, Small, Title, Wrap } from '@/components/ui';
+import { useCircle } from '@/lib/useCircle';
 import { colors } from '@/theme';
 
 export default function KidProfile() {
   const { id, kidId } = useLocalSearchParams<{ id: string; kidId: string }>();
   const isNew = kidId === 'new';
-  const { profile } = useSession();
+  const { profile, uid } = useSession();
+  const { members } = useCircle(id);
+  const [ownerUid, setOwnerUid] = useState<string | null>(null);
+  const [guardians, setGuardians] = useState<string[]>([]);
   const [ready, setReady] = useState(isNew);
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
@@ -29,6 +33,8 @@ export default function KidProfile() {
         setNotes(k.notes);
         setEmergencyName(k.emergencyName);
         setEmergencyPhone(k.emergencyPhone);
+        setOwnerUid(k.ownerUid);
+        setGuardians(k.guardianUids ?? []);
       }
       setReady(true);
     });
@@ -45,7 +51,7 @@ export default function KidProfile() {
     if (!profile) return;
     setBusy(true);
     setError(null);
-    const kid = { name: name.trim(), notes: notes.trim(), emergencyName: emergencyName.trim(), emergencyPhone: emergencyPhone.trim() };
+    const kid = { name: name.trim(), notes: notes.trim(), emergencyName: emergencyName.trim(), emergencyPhone: emergencyPhone.trim(), guardianUids: [...new Set([ownerUid ?? uid ?? '', ...guardians].filter(Boolean))] };
     try {
       if (isNew) await addKid(id, kid, profile);
       else await updateKid(id, kidId, kid);
@@ -86,6 +92,24 @@ export default function KidProfile() {
         placeholder="Booster seat. Waits by the library door."
         multiline
       />
+      {members.filter((m) => m.uid !== (ownerUid ?? uid)).length > 0 && (
+        <View style={{ gap: 8 }}>
+          <Body style={{ fontWeight: '600' }}>Other parent</Body>
+          <Small>They can see and edit this profile, and will see this child on their home screen.</Small>
+          <Wrap>
+            {members
+              .filter((m) => m.uid !== (ownerUid ?? uid))
+              .map((m) => (
+                <Chip
+                  key={m.uid}
+                  label={m.name}
+                  on={guardians.includes(m.uid)}
+                  onPress={() => setGuardians((g) => (g.includes(m.uid) ? g.filter((x) => x !== m.uid) : [...g, m.uid]))}
+                />
+              ))}
+          </Wrap>
+        </View>
+      )}
       <Body>Emergency contact</Body>
       <Field label="Contact name" value={emergencyName} onChangeText={setEmergencyName} placeholder="Sam Whitfield" autoCapitalize="words" />
       <Field label="Contact phone" value={emergencyPhone} onChangeText={setEmergencyPhone} placeholder="555 010 0142" keyboardType="phone-pad" />

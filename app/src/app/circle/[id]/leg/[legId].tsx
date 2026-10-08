@@ -187,7 +187,7 @@ export default function LegEditor() {
             <IconBtn label="Move down" disabled={i === stops.length - 1} onPress={() => moveStop(i, 1)} icon={<ArrowDown size={18} color={colors.ink} />} />
             <IconBtn label="Remove stop" disabled={stops.length === 1} onPress={() => setStops((x) => x.filter((_, j) => j !== i))} icon={<Trash2 size={18} color={colors.danger} />} />
           </View>
-          <Field label="Where" value={s.label} onChangeText={(v) => patchStop(i, { label: v })} placeholder={i === stops.length - 1 && direction === 'AM' ? 'Lincoln Elementary' : 'The Hendersons'} />
+          <Field label="Where" value={s.label} onChangeText={(v) => patchStop(i, { label: v })} placeholder={(direction === 'AM' ? i === stops.length - 1 : i === 0) ? 'Lincoln Elementary' : 'The Hendersons'} />
           <Field label="Time" value={s.time} onChangeText={(v) => patchStop(i, { time: v })} placeholder="7:50 AM" />
           <Field
             label="Street address (for the map)"
