@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { Bell, ChevronRight, Sun } from 'lucide-react-native';
+import { Bell, Check, ChevronRight, Sun } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
 import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg, prettyDate, rideLabel, runsOn, toISO } from '@/lib/schedule';
@@ -326,7 +326,12 @@ function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <Heading>{fmtTime(it.start)}</Heading>
           <Body style={{ fontWeight: '700', flex: 1 }}>{it.title}</Body>
-          {it.status !== 'scheduled' && <StatusDot status={it.status} />}
+          {it.status === 'completed' && (
+            <View accessibilityLabel="Done" style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.okSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={16} color={colors.ok} strokeWidth={3} />
+            </View>
+          )}
+          {(it.status === 'started' || it.status === 'skipped') && <StatusDot status={it.status} />}
         </View>
         <Small>
           {showCircle ? `${it.circleName} · ` : ''}
