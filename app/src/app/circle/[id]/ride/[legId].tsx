@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { onValue, ref } from 'firebase/database';
 import { Car, ChevronLeft, Navigation } from 'lucide-react-native';
 import { rtdb } from '@/lib/firebase';
-import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, livePath, patchRun, publishPosition, requestSwap, runKey, sendBroadcast, startRun } from '@/lib/data';
+import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, isOrganizer, livePath, patchRun, publishPosition, requestSwap, runKey, saveOverride, sendBroadcast, startRun } from '@/lib/data';
 import type { BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
 import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
@@ -39,6 +39,7 @@ export default function RideDay() {
   const [simulate, setSimulate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lateOpen, setLateOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const [farArmed, setFarArmed] = useState(false); // first tap when far from the stop only arms the button
   const sheetRef = useRef<ScrollView>(null);
   const [, tick] = useState(0);
@@ -213,6 +214,19 @@ export default function RideDay() {
     try {
       await requestSwap(id, key, { legId, date, legLabel, start: leg.windowStart, requesterUid: uid, requesterName: myName }, swap?.status === 'cancelled');
       await announce('swap_requested');
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Organizers can pick any parent as this day's driver until the ride starts. Choosing the normal
+  // driver again clears the change.
+  const canAssign = !!circle && isOrganizer(circle, uid) && !run && date >= toISO(new Date());
+  const normalDriver = driverFor(legId, leg, date, rotation, { ...overrides, [key]: { ...overrides[key], driverUid: undefined } }, days);
+  async function assignDriver(driverUid: string) {
+    setBusy(true);
+    try {
+      await saveOverride(id, key, { ...overrides[key], driverUid: driverUid === normalDriver ? undefined : driverUid });
+      setAssignOpen(false);
     } finally {
       setBusy(false);
     }
@@ -474,28 +488,43 @@ export default function RideDay() {
                 </Wrap>
               </View>
             )}
-            {isDriver && !completed && (
+            {!completed && (isDriver || canAssign) && (
               <View style={{ flexDirection: 'row', gap: space.sm }}>
-                {!lateOpen && (
+                {isDriver && !lateOpen && (
                   <View style={{ flex: 1 }}>
                     <Button variant="secondary" label="Running late" onPress={() => setLateOpen(true)} />
                   </View>
                 )}
-                {started && !lastStop && Object.keys(actions).length > 0 && (
+                {isDriver && started && !lastStop && Object.keys(actions).length > 0 && (
                   <View style={{ flex: 1 }}>
                     <Button variant="secondary" label="Skip this stop" onPress={skipStop} disabled={busy} />
                   </View>
                 )}
-                {!run && !openSwap && (
+                {canAssign && (
+                  <View style={{ flex: 1 }}>
+                    <Button variant="secondary" label={assignOpen ? 'Close' : 'Change driver'} onPress={() => setAssignOpen((o) => !o)} />
+                  </View>
+                )}
+                {isDriver && !canAssign && !run && !openSwap && (
                   <View style={{ flex: 1 }}>
                     <Button variant="secondary" label="Need a sub" onPress={askForSub} disabled={busy} />
                   </View>
                 )}
-                {!run && openSwap && openSwap.requesterUid === uid && (
+                {isDriver && !run && openSwap && openSwap.requesterUid === uid && (
                   <View style={{ flex: 1 }}>
                     <Button variant="secondary" label="Cancel sub request" onPress={() => cancelSwap(id, key)} />
                   </View>
                 )}
+              </View>
+            )}
+            {canAssign && assignOpen && (
+              <View style={{ gap: space.sm }}>
+                <Small>Who drives this one?</Small>
+                <Wrap>
+                  {members.map((m) => (
+                    <Chip key={m.uid} label={m.name} on={driverUid === m.uid} onPress={() => (busy ? undefined : assignDriver(m.uid))} />
+                  ))}
+                </Wrap>
               </View>
             )}
             {isDriver && !completed ? (
