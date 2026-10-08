@@ -19,6 +19,7 @@ export default function LegEditor() {
 
   const [loaded, setLoaded] = useState(isNew);
   const [direction, setDirection] = useState<'AM' | 'PM'>('AM');
+  const [name, setName] = useState('');
   const [oneOff, setOneOff] = useState(false);
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [date, setDate] = useState(today);
@@ -37,6 +38,7 @@ export default function LegEditor() {
     const leg = legs[legId];
     if (!leg) return;
     setDirection(leg.direction);
+    setName(leg.name ?? '');
     setOneOff(!!leg.date);
     setDays(leg.days);
     setDate(leg.date ?? today);
@@ -102,6 +104,7 @@ export default function LegEditor() {
     const existing = isNew ? null : legs[legId];
     const leg: Leg = {
       direction,
+      ...(name.trim() ? { name: name.trim() } : {}),
       days: oneOff ? [] : [...days].sort(),
       ...(oneOff ? { date } : {}),
       startDate: existing?.startDate ?? today,
@@ -140,14 +143,21 @@ export default function LegEditor() {
     <Screen back footer={<Button label={isNew ? 'Add ride' : 'Save changes'} onPress={save} loading={busy} />}>
       <Title>{isNew ? 'Add a ride' : 'Edit ride'}</Title>
       <Small>
-        {circle.name} · rides are one direction, so a morning dropoff and an afternoon pickup are two rides.
+        {circle.name} · every ride goes one way, so getting to practice and getting home again are two rides.
       </Small>
+
+      <Field label="What is it for? (optional)" value={name} onChangeText={setName} placeholder="Baseball practice" maxLength={40} hint="Shows on every card so rides are easy to tell apart." />
 
       <Heading>Direction</Heading>
       <Wrap>
-        <Chip label="Morning dropoff" on={direction === 'AM'} onPress={() => setDirection('AM')} />
-        <Chip label="Afternoon pickup" on={direction === 'PM'} onPress={() => setDirection('PM')} />
+        <Chip label="Dropoff" on={direction === 'AM'} onPress={() => setDirection('AM')} />
+        <Chip label="Pickup" on={direction === 'PM'} onPress={() => setDirection('PM')} />
       </Wrap>
+      <Small>
+        {direction === 'AM'
+          ? 'Dropoff: pick the kids up at home and take them to the activity.'
+          : 'Pickup: collect the kids at the activity and bring them home.'}
+      </Small>
 
       <Heading>When</Heading>
       <Wrap>

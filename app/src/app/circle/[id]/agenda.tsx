@@ -7,7 +7,7 @@ import { SwapCard } from '@/components/social';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import {
-  addDays, driverFor, effectiveWindow, fmtTime, isoWeekday, mondayOf, overrideKey, parseTime, prettyDate, runsOn, shortDate, toISO,
+  addDays, driverFor, effectiveWindow, fmtTime, isoWeekday, mondayOf, overrideKey, parseTime, prettyDate, rideLabel, rideTitle, runsOn, shortDate, toISO,
 } from '@/lib/schedule';
 import { Avatar, Body, Button, Card, Centered, Chip, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
@@ -111,7 +111,7 @@ export default function Agenda() {
                   >
                     <Avatar name={driver ? nameOf(driver) : '?'} tone="sun" />
                     <View style={{ flex: 1 }}>
-                      <Heading>{leg.direction === 'AM' ? 'Morning dropoff' : 'Afternoon pickup'}</Heading>
+                      <Heading>{rideTitle(leg)}</Heading>
                       <Body soft>{skipped ? 'Skipped' : driver ? `${nameOf(driver)}${driver === uid ? ' (you)' : ''} drives` : 'No driver yet'}</Body>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -124,7 +124,7 @@ export default function Agenda() {
                   {(() => {
                     const swap = swaps[key];
                     const open = swap?.status === 'open' ? swap : undefined;
-                    const label = `${circle.name} — ${leg.direction === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
+                    const label = rideLabel(circle.name, leg);
                     const myName = profile?.name ?? 'A parent';
                     if (skipped || !uid) return null;
                     if (open)

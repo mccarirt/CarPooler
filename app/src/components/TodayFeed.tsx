@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Bell, ChevronRight } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
-import { addDays, driverFor, effectiveWindow, fmtTime, isSkipped, Override, overrideKey, prettyDate, runsOn, toISO } from '@/lib/schedule';
+import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg, Override, overrideKey, prettyDate, rideLabel, runsOn, toISO } from '@/lib/schedule';
 import { acceptSwap, cancelSwap, guardiansOf, isOrganizer, requestSwap, runKey, saveOverride, sendBroadcast } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
@@ -17,6 +17,7 @@ type Item = {
   legId: string;
   date: string;
   title: string;
+  dir: string; // Dropoff or Pickup
   start: string;
   driver: string;
   mine: boolean;
@@ -51,7 +52,7 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
 
   const report = useMemo((): Report => {
     if (!circle) return EMPTY;
-    const label = (dir: 'AM' | 'PM') => `${circle.name} — ${dir === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
+    const label = (leg: Leg) => rideLabel(circle.name, leg);
     const entries = Object.entries(legs);
 
     const items = entries
@@ -67,13 +68,14 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
           circleId,
           legId,
           date,
-          title: label(leg.direction),
+          title: leg.name?.trim() || circle.name,
+          dir: dirLabel(leg.direction),
           start: effectiveWindow(legId, leg, date, overrides).start,
           driver: driver ? nameOf(driver) : 'No driver yet',
           mine: driver === uid,
           status,
           rideKey,
-          legLabel: label(leg.direction),
+          legLabel: label(leg),
           override: overrides[overrideKey(legId, date)],
           driverUid: driver ?? null,
           normalDriverUid: driverFor(legId, leg, date, rotation, { ...overrides, [rideKey]: { ...overrides[rideKey], driverUid: undefined } }, days),
@@ -94,7 +96,7 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
               circleId,
               legId,
               date: tomorrow,
-              title: label(leg.direction),
+              title: label(leg),
               start: effectiveWindow(legId, leg, tomorrow, overrides).start,
             }))
         : [];
@@ -282,7 +284,7 @@ function TodayCard({ it }: { it: Item }) {
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Body style={{ fontWeight: '600' }}>{it.title}</Body>
-          <Small>{it.mine ? 'You are driving' : `${it.driver} is driving`}</Small>
+          <Small>{it.dir} · {it.mine ? 'You are driving' : `${it.driver} is driving`}</Small>
         </View>
         <StatusDot status={it.status} />
         {it.status !== 'skipped' && <ChevronRight size={20} color={colors.inkSoft} />}

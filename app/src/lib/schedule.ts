@@ -3,6 +3,7 @@
 
 export type Stop = { label: string; time: string; kidIds: string[]; address?: string; lat?: number; lng?: number };
 export type Leg = {
+  name?: string; // what the ride is for, e.g. "Baseball practice"
   direction: 'AM' | 'PM';
   days: number[]; // recurring weekdays; ignored when `date` is set
   date?: string; // one fixed date instead of recurring
@@ -148,3 +149,12 @@ export function fairness(
   }
   return score;
 }
+
+// ---------- ride names ----------
+// A ride is one direction: "Dropoff" takes kids from home to the activity, "Pickup" brings them back.
+// (The stored values stay 'AM' and 'PM'; the words shown to people no longer assume morning or afternoon.)
+export const dirLabel = (d: 'AM' | 'PM') => (d === 'AM' ? 'Dropoff' : 'Pickup');
+// Short title used inside a circle: "Baseball practice · Dropoff", or just "Dropoff" for an unnamed ride.
+export const rideTitle = (leg: Pick<Leg, 'name' | 'direction'>) => (leg.name?.trim() ? `${leg.name.trim()} · ${dirLabel(leg.direction)}` : dirLabel(leg.direction));
+// Longer label used in messages that mention the circle: "Our Household — Baseball practice · Dropoff".
+export const rideLabel = (circleName: string, leg: Pick<Leg, 'name' | 'direction'>) => `${circleName} — ${rideTitle(leg)}`;

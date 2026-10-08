@@ -16,7 +16,7 @@ export type Broadcast = {
   fromUid: string;
   fromName: string;
   legId: string;
-  legLabel: string; // e.g. "Lincoln Elementary — AM dropoff"
+  legLabel: string; // e.g. "Our Household — Baseball practice · Dropoff"
   date: string;
   createdAt: number;
   kidName?: string;

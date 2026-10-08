@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Plus
 import { guardiansOf, isOrganizer, PUBLIC_URL, saveRotation, setCoOrganizers } from '@/lib/data';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
-import { fairness, fmtTime, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
+import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
 import { Avatar, Body, Button, Card, Centered, Gap, Heading, Screen, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
@@ -98,7 +98,7 @@ export default function CircleDetail() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}
           >
             <View style={{ flex: 1 }}>
-              <Heading>{leg.direction === 'AM' ? 'Morning dropoff' : 'Afternoon pickup'}</Heading>
+              <Heading>{rideTitle(leg)}</Heading>
               <Small>
                 {leg.date ? 'One day only' : leg.days.map((d) => WEEKDAY_SHORT[d - 1]).join(' · ')} · {fmtTime(leg.windowStart)}
                 {leg.windowEnd ? `–${fmtTime(leg.windowEnd)}` : ''}

@@ -9,7 +9,7 @@ import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, livePath, 
 import type { BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
 import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
-import { driverFor, fmtTime, prettyDate, toISO } from '@/lib/schedule';
+import { driverFor, fmtTime, prettyDate, rideLabel, rideTitle, toISO } from '@/lib/schedule';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import Map from '@/components/Map';
@@ -144,7 +144,7 @@ export default function RideDay() {
   const completed = run?.status === 'completed';
   const stopIndex = run?.stopIndex ?? 0;
   const nextStop = stops[Math.min(stopIndex, stops.length - 1)];
-  const label = leg.direction === 'AM' ? 'Morning dropoff' : 'Afternoon pickup';
+  const label = rideTitle(leg);
 
   // ---- distance / ETA to the next stop ----
   const pos = started && live ? { lat: live.lat, lng: live.lng } : null;
@@ -198,7 +198,7 @@ export default function RideDay() {
   const lastStop = stopIndex === stops.length - 1;
   const prim = primaryAction(run, stops, actions, kidName);
 
-  const legLabel = `${circle.name} — ${leg.direction === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
+  const legLabel = rideLabel(circle.name, leg);
   const myName = profile?.name ?? 'A parent';
   const announce = (type: BroadcastType, extra: { kidName?: string; stopLabel?: string; minutes?: number } = {}) =>
     uid ? sendBroadcast(id, { type, fromUid: uid, fromName: myName, legId, legLabel, date, ...extra }).catch(() => {}) : Promise.resolve();
