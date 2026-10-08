@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Plus } from 'lucide-react-native';
-import { guardiansOf, isOrganizer, PUBLIC_URL, saveRotation, setCoOrganizers } from '@/lib/data';
+import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Pencil, Plus } from 'lucide-react-native';
+import { guardiansOf, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
 import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
-import { Avatar, Body, Button, Card, Centered, Gap, Heading, Screen, Small, Title } from '@/components/ui';
+import { Avatar, Body, Button, Card, Centered, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 export default function CircleDetail() {
@@ -15,6 +15,10 @@ export default function CircleDetail() {
   const { uid } = useSession();
   const { circle, members, kids, legs, overrides, days, rotation, nameOf } = useCircle(id);
   const [copied, setCopied] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const today = toISO(new Date());
 
   const score = useMemo(() => fairness(legs, rotation, overrides, days, today), [legs, rotation, overrides, days, today]);
@@ -64,13 +68,51 @@ export default function CircleDetail() {
     saveRotation(id, next);
   }
 
+  async function saveName() {
+    setRenameBusy(true);
+    setRenameError(null);
+    try {
+      await renameCircle(id, draft);
+      setRenaming(false);
+    } catch {
+      setRenameError('Could not rename the circle. Try again in a moment.');
+    }
+    setRenameBusy(false);
+  }
+
   const byOwner = (owner: string) => kids.filter((k) => k.ownerUid === owner);
   const legList = Object.entries(legs).sort(([, a], [, b]) => a.windowStart.localeCompare(b.windowStart));
   const maxScore = Math.max(1, ...Object.values(score));
 
   return (
     <Screen back>
-      <Title>{circle.name}</Title>
+      {renaming ? (
+        <Card style={{ gap: space.sm }}>
+          <Field label="Circle name" value={draft} onChangeText={setDraft} autoCapitalize="words" maxLength={40} />
+          <ErrorNote message={renameError} />
+          <Button label="Save name" onPress={saveName} loading={renameBusy} disabled={!draft.trim() || draft.trim() === circle.name} />
+          <Button variant="ghost" label="Cancel" onPress={() => setRenaming(false)} disabled={renameBusy} />
+        </Card>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <View style={{ flex: 1 }}>
+            <Title>{circle.name}</Title>
+          </View>
+          {isAdmin && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Rename circle"
+              onPress={() => {
+                setDraft(circle.name);
+                setRenaming(true);
+              }}
+              style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sunk }}
+            >
+              <Pencil size={20} color={colors.ink} strokeWidth={2.25} />
+            </Pressable>
+          )}
+        </View>
+      )}
 
       <Card onPress={() => router.push(`/circle/${id}/agenda`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <CalendarDays size={24} color={colors.accent} strokeWidth={2} />

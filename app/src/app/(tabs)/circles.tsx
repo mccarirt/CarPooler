@@ -1,6 +1,7 @@
 import { ActivityIndicator, View } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronRight, Plus, Users } from 'lucide-react-native';
+import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
 import { Body, Button, Card, Heading, Screen, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
@@ -30,7 +31,7 @@ export default function Circles() {
         rows.map((r) => (
           <Card key={r.id} onPress={() => router.push(`/circle/${r.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
             <View style={{ flex: 1 }}>
-              <Heading>{r.circleName}</Heading>
+              <CircleTitle id={r.id} fallback={r.circleName} />
               <Small>{r.role === 'admin' ? 'You started this circle' : 'Member'}</Small>
             </View>
             <ChevronRight size={22} color={colors.inkSoft} />
@@ -39,4 +40,8 @@ export default function Circles() {
       )}
     </Screen>
   );
+}
+
+function CircleTitle({ id, fallback }: { id: string; fallback: string }) {
+  return <Heading>{useCircleName(id, fallback)}</Heading>;
 }

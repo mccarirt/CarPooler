@@ -239,3 +239,12 @@ export async function updateProfileEverywhere(name: string, car: string, color?:
   circles.docs.forEach((c) => batch.update(doc(db, 'circles', c.id, 'members', uid), clean));
   await batch.commit();
 }
+
+// Rename a circle. The organizer's own list keeps a copy of the name, so refresh that too; everyone
+// else's lists read the name from the circle itself (see useCircleName).
+export async function renameCircle(circleId: string, name: string) {
+  const uid = await ensureSignedIn();
+  const clean = name.trim();
+  await updateDoc(doc(db, 'circles', circleId), { name: clean });
+  await updateDoc(doc(db, 'users', uid, 'memberships', circleId), { circleName: clean }).catch(() => {});
+}

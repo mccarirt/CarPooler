@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
 import { addDays, mondayOf, shortDate, toISO } from '@/lib/schedule';
 import { WeekFeed } from '@/components/TodayFeed';
@@ -48,7 +49,7 @@ export default function Week() {
             <Small>Skip a day, change a time, or add a note:</Small>
             {rows.map((r) => (
               <Pressable key={r.id} accessibilityRole="button" onPress={() => router.push(`/circle/${r.id}/agenda`)} style={{ minHeight: 44, justifyContent: 'center' }}>
-                <Small style={{ color: colors.accent, fontWeight: '700' }}>Edit the {r.circleName} schedule</Small>
+                <EditLink id={r.id} fallback={r.circleName} />
               </Pressable>
             ))}
           </View>
@@ -69,4 +70,9 @@ function NavBtn({ label, onPress, icon }: { label: string; onPress: () => void; 
       {icon}
     </Pressable>
   );
+}
+
+function EditLink({ id, fallback }: { id: string; fallback: string }) {
+  const name = useCircleName(id, fallback);
+  return <Small style={{ color: colors.accent, fontWeight: '700' }}>Edit the {name} schedule</Small>;
 }

@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { Car, ChevronRight, Pencil } from 'lucide-react-native';
+import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
@@ -51,11 +52,12 @@ export default function Me() {
 
 function ChildrenIn({ circleId, circleName, uid }: { circleId: string; circleName: string; uid: string | null }) {
   const { kids } = useCircle(circleId);
+  const liveName = useCircleName(circleId, circleName);
   const mine = kids.filter((k) => !!uid && guardiansOf(k).includes(uid));
   if (mine.length === 0) return null;
   return (
     <View style={{ gap: space.sm }}>
-      <Small>{circleName}</Small>
+      <Small>{liveName}</Small>
       {mine.map((k) => (
         <Card key={k.id} onPress={() => router.push(`/circle/${circleId}/kid/${k.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
           <Avatar name={k.name} size={44} id={k.id} colorKey={k.color} />
