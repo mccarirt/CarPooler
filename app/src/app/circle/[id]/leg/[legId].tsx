@@ -98,7 +98,7 @@ export default function LegEditor() {
       if (!s.label.trim() || !t) return setError('Each stop needs a name and a time like 7:50 AM.');
       cleanStops.push({ label: s.label.trim(), time: t, kidIds: s.kidIds, ...(s.address.trim() ? { address: s.address.trim() } : {}), ...(s.lat !== undefined && s.lng !== undefined ? { lat: s.lat, lng: s.lng } : {}) });
     }
-    if (cleanStops.length === 0) return setError('Add at least one stop.');
+    if (cleanStops.length < 2) return setError('A ride needs two stops: where the child is picked up and where they are going. Add the home stop.');
     if (driverMode === 'fixed' && !fixedUid) return setError('Choose which parent always drives this ride.');
 
     const existing = isNew ? null : legs[legId];

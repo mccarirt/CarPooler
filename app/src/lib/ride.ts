@@ -24,6 +24,17 @@ export function kidIdsOf(stops: Stop[]) {
   return [...new Set(stops.flatMap((s) => s.kidIds))];
 }
 
+// Where a child gets on (morning) or off (afternoon): the first stop that is not the destination and
+// lists them. If they are only ticked at the destination, or nowhere useful, fall back to the far end of
+// the ride so the ride still works. A one-stop ride has no home end (null).
+export function homeStopOf(direction: 'AM' | 'PM', stops: Stop[], kidId: string): number | null {
+  const dest = destinationIndex(direction, stops);
+  const listed = stops.findIndex((s, i) => i !== dest && s.kidIds.includes(kidId));
+  if (listed >= 0) return listed;
+  const far = direction === 'AM' ? 0 : stops.length - 1;
+  return far !== dest ? far : null;
+}
+
 // What can the driver confirm right now, per kid?
 export function kidActions(direction: 'AM' | 'PM', stops: Stop[], run: Run): Record<string, { to: KidState; label: string }> {
   const out: Record<string, { to: KidState; label: string }> = {};
@@ -32,12 +43,14 @@ export function kidActions(direction: 'AM' | 'PM', stops: Stop[], run: Run): Rec
   const here = run.stopIndex;
   for (const kidId of kidIdsOf(stops)) {
     const state = run.kids[kidId] ?? 'waiting';
+    const home = homeStopOf(direction, stops, kidId);
     if (direction === 'AM') {
-      if (here === dest && state === 'picked_up') out[kidId] = { to: 'dropped_off', label: 'Dropped off' };
-      else if (here !== dest && stops[here].kidIds.includes(kidId) && state === 'waiting') out[kidId] = { to: 'picked_up', label: 'Picked up' };
+      // Dropped off at the destination (also straight away on a one-stop ride, where there is no pickup).
+      if (here === dest && (state === 'picked_up' || (home === null && state === 'waiting'))) out[kidId] = { to: 'dropped_off', label: 'Dropped off' };
+      else if (here === home && state === 'waiting') out[kidId] = { to: 'picked_up', label: 'Picked up' };
     } else {
       if (here === dest && state === 'waiting') out[kidId] = { to: 'picked_up', label: 'Picked up' };
-      else if (here !== dest && stops[here].kidIds.includes(kidId) && state === 'picked_up') out[kidId] = { to: 'dropped_off', label: 'Dropped off' };
+      else if (here === home && state === 'picked_up') out[kidId] = { to: 'dropped_off', label: 'Dropped off' };
     }
   }
   return out;
