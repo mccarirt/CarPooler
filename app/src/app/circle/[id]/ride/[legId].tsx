@@ -147,8 +147,16 @@ export default function RideDay() {
   const pos = started && live ? { lat: live.lat, lng: live.lng } : null;
   let remaining: number | null = null;
   if (pos && nextStop) {
-    if (route) remaining = Math.max(0, route.cum[route.stopIdx[stopIndex]] - route.cum[nearestIndex(route.coords, pos)]);
-    else if (nextStop.lat !== undefined && nextStop.lng !== undefined) remaining = haversine(pos, { lat: nextStop.lat, lng: nextStop.lng });
+    const straight = nextStop.lat !== undefined && nextStop.lng !== undefined ? haversine(pos, { lat: nextStop.lat, lng: nextStop.lng }) : null;
+    if (route) {
+      // The route only runs between stops. A driver who starts somewhere else (the afternoon
+      // pickup starts at home, but the route begins at school) is off it or behind it, so
+      // measure straight to the stop until they join the route.
+      const i = nearestIndex(route.coords, pos);
+      const offRoute = haversine(pos, { lat: route.coords[i][0], lng: route.coords[i][1] }) > 250;
+      const ahead = route.cum[route.stopIdx[stopIndex]] - route.cum[i];
+      remaining = !offRoute && ahead >= -50 ? Math.max(0, ahead) : straight;
+    } else remaining = straight;
   }
   const avgSpeed = (route ? route.totalDist / route.totalDur : 9) * (run?.simulated ? SIM_SPEEDUP : 1); // m/s
   const etaSec = remaining !== null ? remaining / avgSpeed : null;
