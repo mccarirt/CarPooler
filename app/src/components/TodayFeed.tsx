@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, Check, ChevronRight, Sun } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
@@ -9,7 +9,7 @@ import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast, startRun } 
 import { Broadcast, newestFirst, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { useDismissed } from '@/lib/dismissed';
-import { initialKids, kidIdsOf, Run } from '@/lib/ride';
+import { initialKids, kidIdsOf } from '@/lib/ride';
 import { Avatar, Body, Button, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
@@ -35,11 +35,11 @@ type Item = {
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
 type UpdateItem = { circleId: string; circleName: string; b: Broadcast };
-type KidArc = { key: string; kidId: string; kidColor?: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string; place: string };
-type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidArc[] };
+type Trip = { legId: string; start: string; title: string; dir: string; state: 'upcoming' | 'live' | 'done' | 'problem'; text: string };
+type KidDay = { key: string; kidId: string; kidColor?: string; circleId: string; date: string; kidName: string; headline: string; trips: Trip[] };
+type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidDay[] };
 
 const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [], arcs: [] };
-const arcSteps = (place: string) => ['Dropoff complete', `At ${place}`, 'Pickup started', 'Home'];
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
 // One invisible probe per circle reports what matters upward, so a screen can merge everything
@@ -116,40 +116,45 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
       .filter((b) => now - b.createdAt < RECENT_MS && b.fromUid !== uid && b.type !== 'swap_requested')
       .map((b) => ({ circleId, circleName: circle.name, b }));
 
-    // The day-long custody arc for each of my children (Uber ends at dropoff; a parent's day doesn't).
-    const arcs: KidArc[] = [];
+    // Each of my children's day: every ride they are on today, in time order, each with its own status.
+    // A child can have any number of trips (school, practice, a club), so this is a list, not a fixed path.
+    const arcs: KidDay[] = [];
     const live = entries.filter(([legId, leg]) => runsOn(leg, today) && !isSkipped(legId, today, overrides, days));
     for (const kid of kids.filter((k) => !!uid && guardiansOf(k).includes(uid))) {
-      // Every ride today that includes this child, not just the first: a duplicate ride or a second
-      // driver's run must not hide what actually happened.
-      const legsFor = (dir: 'AM' | 'PM') => live.filter(([, leg]) => leg.direction === dir && leg.stops.some((s) => s.kidIds.includes(kid.id)));
-      const amLegs = legsFor('AM');
-      const pmLegs = legsFor('PM');
-      if (amLegs.length === 0 && pmLegs.length === 0) continue;
-      const runsOf = (ls: typeof amLegs) => ls.map(([id]) => runs[runKey(id, today)]).filter((r): r is Run => !!r);
-      const amRuns = runsOf(amLegs);
-      const pmRuns = runsOf(pmLegs);
-      const stateIn = (rs: Run[]) => rs.map((r) => r.kids?.[kid.id]);
-      const amDone = stateIn(amRuns).includes('dropped_off');
-      const pmHome = stateIn(pmRuns).includes('dropped_off');
-      const amDoneAt = Math.max(0, ...amRuns.map((r) => r.completedAt ?? 0));
-      // A ride the driver ended without confirming this child. Say what we do and don't know.
-      const unconfirmed = (rs: Run[], arrival: string) =>
-        stateIn(rs).includes('absent') ? "Didn't ride" : stateIn(rs).includes('picked_up') ? `Ride ended, ${arrival} not confirmed` : "Ride ended, pickup not confirmed";
-      const am = amLegs[0];
-      const pm = pmLegs[0];
-      const first = (am ?? pm)!;
-      let step = -1;
-      const place = first[1].name?.trim() || 'school'; // where the child spends the middle of the day
-      let label = am ? `Dropoff at ${fmtTime(effectiveWindow(am[0], am[1], today, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], today, overrides).start)}`;
-      let target = first;
-      if (pmHome) { step = 3; label = 'Home safe'; target = pm!; }
-      else if (pmRuns.some((r) => r.status === 'started')) { step = 2; label = 'On the way home'; target = pm!; }
-      else if (pmRuns.some((r) => r.status === 'completed')) { step = amDone ? 1 : -1; label = unconfirmed(pmRuns, 'arrival home'); target = pm!; }
-      else if (amDone) { step = Date.now() - amDoneAt < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? `Dropped off at ${place}` : `At ${place}`; target = pm ?? am!; }
-      else if (amRuns.some((r) => r.status === 'started')) { label = 'On the way'; }
-      else if (amRuns.some((r) => r.status === 'completed')) { label = unconfirmed(amRuns, `arrival at ${place}`); }
-      arcs.push({ key: `${circleId}_${kid.id}`, kidId: kid.id, kidColor: kid.color, circleId, legId: target[0], date: today, kidName: kid.name, step, label, place });
+      const trips = live
+        .filter(([, leg]) => leg.stops.some((s) => s.kidIds.includes(kid.id)))
+        .map(([legId, leg]): Trip => {
+          const run = runs[runKey(legId, today)];
+          const mine = run?.kids?.[kid.id];
+          const dir = dirLabel(leg.direction);
+          let state: Trip['state'] = 'upcoming';
+          let text = 'Scheduled';
+          if (run?.status === 'started') {
+            state = 'live';
+            text = mine === 'dropped_off' ? 'Dropped off' : mine === 'picked_up' ? 'In the car' : mine === 'absent' ? "Didn't ride" : dir === 'Pickup' ? 'Pickup in progress' : 'On the way';
+            if (mine === 'dropped_off' || mine === 'absent') state = 'done';
+          } else if (run?.status === 'completed') {
+            if (mine === 'dropped_off') { state = 'done'; text = 'Dropped off'; }
+            else if (mine === 'absent') { state = 'done'; text = "Didn't ride"; }
+            else { state = 'problem'; text = mine === 'picked_up' ? 'Ride ended, drop-off not confirmed' : 'Ride ended, not confirmed'; }
+          }
+          return { legId, start: effectiveWindow(legId, leg, today, overrides).start, title: leg.name?.trim() || circle.name, dir, state, text };
+        })
+        .sort((a, b) => a.start.localeCompare(b.start));
+      if (trips.length === 0) continue;
+      const liveNow = trips.find((t) => t.state === 'live');
+      const next = trips.find((t) => t.state === 'upcoming');
+      const problem = trips.find((t) => t.state === 'problem');
+      const headline = liveNow
+        ? `${liveNow.text} · ${liveNow.title}`
+        : next
+          ? `Next: ${next.dir.toLowerCase()} at ${fmtTime(next.start)}`
+          : problem
+            ? problem.text
+            : trips.length > 1
+              ? 'All done today'
+              : trips[0].text;
+      arcs.push({ key: `${circleId}_${kid.id}`, kidId: kid.id, kidColor: kid.color, circleId, date: today, kidName: kid.name, headline, trips });
     }
 
     return { items, reminders, swaps: openSwaps, updates, arcs };
@@ -256,21 +261,33 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
         <View style={{ gap: space.sm }}>
           <Heading>Your kids today</Heading>
           {arcs.map((a) => (
-            <Card key={a.key} onPress={() => router.push(`/circle/${a.circleId}/ride/${a.legId}?date=${a.date}`)} style={{ gap: space.md }}>
+            <Card key={a.key} style={{ gap: space.sm }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
                 <Avatar name={a.kidName} size={44} id={a.kidId} colorKey={a.kidColor} />
                 <View style={{ flex: 1 }}>
                   <Body style={{ fontWeight: '700' }}>{a.kidName.split(' ')[0]}</Body>
-                  <Small>{a.label}</Small>
+                  <Small>{a.headline}</Small>
                 </View>
-                <ChevronRight size={20} color={colors.inkSoft} />
               </View>
-              <View style={{ flexDirection: 'row', gap: 4 }}>
-                {arcSteps(a.place).map((s, i) => (
-                  <View key={s} style={{ flex: 1, gap: 6 }}>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: i <= a.step ? colors.accent : colors.line }} />
-                    <Small style={{ fontSize: 11, lineHeight: 14, color: i === a.step ? colors.ink : colors.inkSoft, fontWeight: i === a.step ? '700' : '500' }}>{s}</Small>
-                  </View>
+              <View>
+                {a.trips.map((t, i) => (
+                  <Pressable
+                    key={t.legId}
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/circle/${a.circleId}/ride/${t.legId}?date=${a.date}`)}
+                    style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48, paddingVertical: 6, borderTopWidth: i === 0 ? 1 : 0, borderBottomWidth: 1, borderColor: colors.line }, pressed && { opacity: 0.7 }]}
+                  >
+                    <TripDot state={t.state} />
+                    <View style={{ flex: 1 }}>
+                      <Body style={{ fontWeight: '600' }}>
+                        {fmtTime(t.start)} · {t.title}
+                      </Body>
+                      <Small style={{ color: t.state === 'live' ? colors.accent : t.state === 'problem' ? colors.danger : colors.inkSoft, fontWeight: t.state === 'live' ? '700' : '500' }}>
+                        {t.dir} · {t.text}
+                      </Small>
+                    </View>
+                    <ChevronRight size={18} color={colors.inkSoft} />
+                  </Pressable>
                 ))}
               </View>
             </Card>
@@ -400,6 +417,22 @@ function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
       )}
       {it.status === 'started' && <Button label={it.mine ? 'Back to the ride' : 'Watch live'} onPress={open} />}
     </Card>
+  );
+}
+
+// The marker at the left of a child's trip: a check when done, a filled dot when live, an outline when still to come.
+function TripDot({ state }: { state: Trip['state'] }) {
+  if (state === 'done')
+    return (
+      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.okSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Check size={16} color={colors.ok} strokeWidth={3} />
+      </View>
+    );
+  const c = state === 'live' ? colors.accent : state === 'problem' ? colors.danger : colors.line;
+  return (
+    <View style={{ width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: state === 'live' ? c : 'transparent', borderWidth: 2, borderColor: c }} />
+    </View>
   );
 }
 
