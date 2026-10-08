@@ -190,7 +190,7 @@ export default function CircleDetail() {
           );
         })
       )}
-      {isAdmin && (
+      {isAdmin && legList.length > 0 && (
         <Button variant="secondary" label="Add a ride" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => router.push(`/circle/${id}/leg/new`)} />
       )}
 
