@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react-native';
-import { deleteLeg, saveLeg } from '@/lib/data';
+import { deleteLeg, savePlaces, saveLeg } from '@/lib/data';
+import { homeOf, samePlace } from '@/lib/places';
+import { useSession } from '@/lib/session';
 import { geocode } from '@/lib/geo';
 import { useCircle } from '@/lib/useCircle';
 import { addDays, fmtTime, Leg, parseTime, prettyDate, Stop, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
@@ -16,6 +18,10 @@ export default function LegEditor() {
   const isNew = legId === 'new';
   const { circle, members, kids, legs, rotation } = useCircle(id);
   const today = toISO(new Date());
+  const { profile } = useSession();
+  const places = profile?.places ?? [];
+  const home = homeOf(places);
+  const [touched, setTouched] = useState(false); // true once anyone edits the stops by hand
 
   const [loaded, setLoaded] = useState(isNew);
   const [direction, setDirection] = useState<'AM' | 'PM'>('AM');
@@ -50,6 +56,14 @@ export default function LegEditor() {
     setLoaded(true);
   }, [legs, legId, isNew, loaded, today]);
 
+  // A new ride starts with your saved home already in the right place: first in a dropoff, last in a pickup.
+  useEffect(() => {
+    if (!isNew || touched) return;
+    const blank = (): StopDraft => ({ label: '', time: '', kidIds: [], address: '' });
+    const homeStop: StopDraft = home ? { label: 'Home', time: '', kidIds: [], address: home.address, lat: home.lat, lng: home.lng, found: 'Saved home' } : blank();
+    setStops(direction === 'AM' ? [homeStop, blank()] : [blank(), homeStop]);
+  }, [isNew, touched, direction, home?.address, home?.lat]);
+
   if (!circle || !loaded)
     return (
       <Centered>
@@ -57,8 +71,12 @@ export default function LegEditor() {
       </Centered>
     );
 
-  const patchStop = (i: number, p: Partial<StopDraft>) => setStops((s) => s.map((x, j) => (j === i ? { ...x, ...p } : x)));
-  const moveStop = (i: number, d: number) =>
+  const patchStop = (i: number, p: Partial<StopDraft>) => {
+    setTouched(true);
+    setStops((s) => s.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  };
+  const moveStop = (i: number, d: number) => {
+    setTouched(true);
     setStops((s) => {
       const j = i + d;
       if (j < 0 || j >= s.length) return s;
@@ -66,6 +84,7 @@ export default function LegEditor() {
       [n[i], n[j]] = [n[j], n[i]];
       return n;
     });
+  };
 
   async function findStop(i: number) {
     setFinding(i);
@@ -195,7 +214,7 @@ export default function LegEditor() {
             <View style={{ flex: 1 }} />
             <IconBtn label="Move up" disabled={i === 0} onPress={() => moveStop(i, -1)} icon={<ArrowUp size={18} color={colors.ink} />} />
             <IconBtn label="Move down" disabled={i === stops.length - 1} onPress={() => moveStop(i, 1)} icon={<ArrowDown size={18} color={colors.ink} />} />
-            <IconBtn label="Remove stop" disabled={stops.length === 1} onPress={() => setStops((x) => x.filter((_, j) => j !== i))} icon={<Trash2 size={18} color={colors.danger} />} />
+            <IconBtn label="Remove stop" disabled={stops.length === 1} onPress={() => { setTouched(true); setStops((x) => x.filter((_, j) => j !== i)); }} icon={<Trash2 size={18} color={colors.danger} />} />
           </View>
           <Field label="Where" value={s.label} onChangeText={(v) => patchStop(i, { label: v })} placeholder={(direction === 'AM' ? i === stops.length - 1 : i === 0) ? 'Lincoln Elementary' : 'The Hendersons'} />
           <Field label="Time" value={s.time} onChangeText={(v) => patchStop(i, { time: v })} placeholder="7:50 AM" />
@@ -209,6 +228,29 @@ export default function LegEditor() {
           {s.address.trim() && s.lat === undefined && (
             <Button variant="secondary" label="Find on map" loading={finding === i} onPress={() => findStop(i)} />
           )}
+          {places.length > 0 && (
+            <View style={{ gap: space.xs }}>
+              <Small>Saved places</Small>
+              <Wrap>
+                {places.map((p) => (
+                  <Chip
+                    small
+                    key={`${p.label}_${p.lat}`}
+                    label={p.label}
+                    on={samePlace(p, s)}
+                    onPress={() => patchStop(i, { label: s.label.trim() ? s.label : p.label, address: p.address, lat: p.lat, lng: p.lng, found: 'Saved place' })}
+                  />
+                ))}
+              </Wrap>
+            </View>
+          )}
+          {s.lat !== undefined && s.lng !== undefined && s.label.trim() !== '' && !places.some((p) => samePlace(p, s)) && (
+            <Button
+              variant="ghost"
+              label={'Save ' + s.label.trim() + ' for next time'}
+              onPress={() => savePlaces([...places, { label: s.label.trim(), address: s.address.trim(), lat: s.lat!, lng: s.lng! }])}
+            />
+          )}
           {kids.length > 0 && (
             <View style={{ gap: space.sm }}>
               <Body>Kids at this stop</Body>
@@ -221,7 +263,7 @@ export default function LegEditor() {
           )}
         </Card>
       ))}
-      <Button variant="secondary" label="Add a stop" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => setStops((s) => [...s, { label: '', time: '', kidIds: [], address: '' }])} />
+      <Button variant="secondary" label="Add a stop" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => { setTouched(true); setStops((s) => [...s, { label: '', time: '', kidIds: [], address: '' }]); }} />
 
       <Heading>Who drives</Heading>
       <Wrap>

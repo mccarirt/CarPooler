@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { Car, ChevronRight, Pencil } from 'lucide-react-native';
+import PlacesSection from '@/components/PlacesSection';
 import { useCircleName } from '@/lib/useCircleName';
 import { useMemberships } from '@/lib/useMemberships';
 import { useSession } from '@/lib/session';
@@ -34,6 +35,8 @@ export default function Me() {
       </Card>
 
       <HouseholdSection circleIds={(rows ?? []).map((r) => ({ id: r.id, name: r.circleName }))} />
+
+      <PlacesSection />
 
       <Heading>Your children</Heading>
       {rows && rows.length > 0 ? (

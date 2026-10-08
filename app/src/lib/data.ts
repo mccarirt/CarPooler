@@ -14,7 +14,9 @@ import {
 import { ref, remove, set } from 'firebase/database';
 import { auth, db, rtdb } from './firebase';
 
-export type Profile = { name: string; car: string; color?: string; household?: string[] };
+// A saved place: your home, the school, the club. Saved once on your own profile, so you never retype it.
+export type Place = { label: string; address: string; lat: number; lng: number };
+export type Profile = { name: string; car: string; color?: string; household?: string[]; places?: Place[] };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
 export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member'; color?: string };
 export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[] };
@@ -286,4 +288,11 @@ export async function setHousehold(next: string[], previous: string[]) {
 export async function logRun(circleId: string, key: string, driverUid: string, kids: Record<string, KidState>, stopCount: number) {
   const run: Run = { driverUid, status: 'completed', stopIndex: Math.max(0, stopCount - 1), arrived: false, kids, simulated: false, startedAt: Date.now(), completedAt: Date.now() };
   await setDoc(doc(db, 'circles', circleId, 'runs', key), run);
+}
+
+// ---------- saved places ----------
+// Kept on your own profile (nobody else can read it). A place is copied onto a ride only when you use it.
+export async function savePlaces(places: Place[]) {
+  const uid = await ensureSignedIn();
+  await setDoc(doc(db, 'users', uid), { places }, { merge: true });
 }
