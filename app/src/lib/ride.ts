@@ -10,6 +10,7 @@ export type Run = {
   kids: Record<string, KidState>;
   simulated: boolean;
   startedAt?: number;
+  arrivingStop?: number; // last stop we announced "arriving" for
   completedAt?: number;
 };
 export type Live = { driverUid: string; lat: number; lng: number; ts: number; sim?: boolean };

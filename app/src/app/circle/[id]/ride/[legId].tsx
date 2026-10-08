@@ -5,14 +5,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { onValue, ref } from 'firebase/database';
 import { Car, ChevronLeft, Navigation } from 'lucide-react-native';
 import { rtdb } from '@/lib/firebase';
-import { clearPosition, ensureRealtimeAccess, livePath, patchRun, publishPosition, runKey, startRun } from '@/lib/data';
+import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, livePath, patchRun, publishPosition, requestSwap, runKey, sendBroadcast, startRun } from '@/lib/data';
+import type { BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
 import { initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryLabel } from '@/lib/ride';
 import { driverFor, fmtTime, prettyDate, toISO } from '@/lib/schedule';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import Map from '@/components/Map';
-import { Avatar, Body, Button, Centered, Chip, Heading, Small } from '@/components/ui';
+import { Avatar, Body, Button, Centered, Chip, Heading, Small, Wrap } from '@/components/ui';
+import { SwapCard, UpdateRow } from '@/components/social';
 import { colors, font, radius, space } from '@/theme';
 
 const SIM_SPEEDUP = 8; // demo driver moves 8x real speed so a leg takes a minute or two
@@ -27,8 +29,8 @@ export default function RideDay() {
   const { id, legId, date: dateParam } = useLocalSearchParams<{ id: string; legId: string; date?: string }>();
   const date = dateParam ?? toISO(new Date());
   const key = runKey(legId, date);
-  const { uid } = useSession();
-  const { circle, members, kids, legs, overrides, days, runs, rotation, nameOf } = useCircle(id);
+  const { uid, profile } = useSession();
+  const { circle, members, kids, legs, overrides, days, runs, broadcasts, swaps, rotation, nameOf } = useCircle(id);
   const leg = legs[legId];
   const run = runs[key];
 
@@ -36,6 +38,7 @@ export default function RideDay() {
   const [live, setLive] = useState<Live | null>(null);
   const [simulate, setSimulate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [lateOpen, setLateOpen] = useState(false);
   const [, tick] = useState(0);
 
   // ---- route (only when every stop has been pinned) ----
@@ -175,24 +178,65 @@ export default function RideDay() {
   const actions = run ? kidActions(leg.direction, stops, run) : {};
   const lastStop = stopIndex === stops.length - 1;
 
+  const legLabel = `${circle.name} — ${leg.direction === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
+  const myName = profile?.name ?? 'A parent';
+  const announce = (type: BroadcastType, extra: { kidName?: string; stopLabel?: string; minutes?: number } = {}) =>
+    uid ? sendBroadcast(id, { type, fromUid: uid, fromName: myName, legId, legLabel, date, ...extra }).catch(() => {}) : Promise.resolve();
+
+  const swap = swaps[key];
+  const openSwap = swap?.status === 'open' ? swap : undefined;
+  const rideUpdates = broadcasts.filter((b) => b.legId === legId && b.date === date).slice(0, 5);
+
+  async function askForSub() {
+    if (!uid) return;
+    setBusy(true);
+    try {
+      await requestSwap(id, key, { legId, date, legLabel, start: leg.windowStart, requesterUid: uid, requesterName: myName }, swap?.status === 'cancelled');
+      await announce('swap_requested');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function takeSwap() {
+    if (!uid) return;
+    await acceptSwap(id, key, { uid, name: myName });
+    await announce('swap_accepted');
+  }
+  async function runningLate(minutes: number) {
+    setLateOpen(false);
+    await announce('running_late', { minutes });
+  }
+
   async function primary() {
     if (!uid) return;
     setBusy(true);
     try {
-      if (!run) await startRun(id, key, uid, initialKids(kidIds), simulate && !!route);
-      else if (!run.arrived) await patchRun(id, key, { arrived: true });
+      if (!run) {
+        await startRun(id, key, uid, initialKids(kidIds), simulate && !!route);
+        await announce('ride_started');
+      } else if (!run.arrived) await patchRun(id, key, { arrived: true });
       else if (lastStop) {
         const patch: Record<string, unknown> = { status: 'completed', completedAt: Date.now() };
         // Morning: anyone still riding gets dropped at the destination.
         if (leg.direction === 'AM') for (const k of kidIds) if (run.kids[k] === 'picked_up') patch[`kids.${k}`] = 'dropped_off';
         await patchRun(id, key, patch);
         await clearPosition(id, key);
+        await announce('ride_completed');
       } else await patchRun(id, key, { stopIndex: stopIndex + 1, arrived: false });
     } finally {
       setBusy(false);
     }
   }
-  const confirmKid = (kidId: string, to: KidState) => patchRun(id, key, { [`kids.${kidId}`]: to });
+  async function confirmKid(kidId: string, to: KidState) {
+    await patchRun(id, key, { [`kids.${kidId}`]: to });
+    await announce(to === 'picked_up' ? 'picked_up' : 'dropped_off', { kidName: kidName(kidId) });
+  }
+  // Tell the family at the next stop that we are almost there, once per stop.
+  const shouldAnnounceArriving = isDriver && started && !run?.arrived && nearNext && run?.arrivingStop !== stopIndex;
+  const announceArriving = () => {
+    patchRun(id, key, { arrivingStop: stopIndex }).catch(() => {});
+    announce('arriving', { stopLabel: nextStop.label });
+  };
 
   const mapStops = stops.flatMap((s, i) =>
     s.lat !== undefined && s.lng !== undefined
@@ -221,6 +265,8 @@ export default function RideDay() {
           <ChevronLeft size={26} color={colors.ink} strokeWidth={2.25} />
         </Pressable>
       </View>
+
+      {shouldAnnounceArriving && <Announcer key={`arr${stopIndex}`} onFire={announceArriving} />}
 
       {/* ---------- bottom sheet ---------- */}
       <View
@@ -251,6 +297,17 @@ export default function RideDay() {
               </View>
               {run?.simulated && !completed ? <Pill text="Demo driver" /> : late ? <Pill text={late.text} bad={late.bad} /> : null}
             </View>
+
+            {openSwap && !completed && !started && uid && (
+              <SwapCard swap={openSwap} mine={openSwap.requesterUid === uid} onAccept={takeSwap} onCancel={() => cancelSwap(id, key)} showRide={false} />
+            )}
+            {rideUpdates.length > 0 && (
+              <View style={{ gap: space.sm }}>
+                {rideUpdates.slice(0, 2).map((b, i) => (
+                  <UpdateRow key={`${b.createdAt}_${i}`} b={b} />
+                ))}
+              </View>
+            )}
 
             {/* ride-state tracker */}
             <View style={{ gap: 6 }}>
@@ -355,6 +412,36 @@ export default function RideDay() {
                 <Small style={{ flex: 1 }}>Try the ride without driving.</Small>
               </View>
             )}
+            {lateOpen && !completed && (
+              <View style={{ gap: space.sm }}>
+                <Small>How late will you be?</Small>
+                <Wrap>
+                  {[5, 10, 15, 20].map((m) => (
+                    <Chip key={m} label={`${m} min`} on={false} onPress={() => runningLate(m)} />
+                  ))}
+                  <Chip label="Never mind" on={false} onPress={() => setLateOpen(false)} />
+                </Wrap>
+              </View>
+            )}
+            {isDriver && !completed && (
+              <View style={{ flexDirection: 'row', gap: space.sm }}>
+                {!lateOpen && (
+                  <View style={{ flex: 1 }}>
+                    <Button variant="secondary" label="Running late" onPress={() => setLateOpen(true)} />
+                  </View>
+                )}
+                {!run && !openSwap && (
+                  <View style={{ flex: 1 }}>
+                    <Button variant="secondary" label="Need a sub" onPress={askForSub} disabled={busy} />
+                  </View>
+                )}
+                {!run && openSwap && openSwap.requesterUid === uid && (
+                  <View style={{ flex: 1 }}>
+                    <Button variant="secondary" label="Cancel sub request" onPress={() => cancelSwap(id, key)} />
+                  </View>
+                )}
+              </View>
+            )}
             {isDriver && !completed ? (
               <Button label={primaryLabel(run, stops)} onPress={primary} loading={busy} />
             ) : completed ? (
@@ -390,4 +477,16 @@ function StatePill({ state }: { state: KidState }) {
       <Text style={[font.label, { color: map.fg }]}>{map.text}</Text>
     </View>
   );
+}
+
+// Fires its callback exactly once when mounted. Used to announce "arriving" once per stop.
+function Announcer({ onFire }: { onFire: () => void }) {
+  const fired = useRef(false);
+  useEffect(() => {
+    if (fired.current) return;
+    fired.current = true;
+    onFire();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
 }

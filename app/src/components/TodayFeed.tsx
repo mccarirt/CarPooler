@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronRight } from 'lucide-react-native';
+import { Bell, ChevronRight } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
-import { driverFor, effectiveWindow, fmtTime, isSkipped, runsOn, toISO } from '@/lib/schedule';
-import { runKey } from '@/lib/data';
+import { addDays, driverFor, effectiveWindow, fmtTime, isSkipped, prettyDate, runsOn, toISO } from '@/lib/schedule';
+import { acceptSwap, cancelSwap, runKey, sendBroadcast } from '@/lib/data';
+import { Broadcast, Swap } from '@/lib/social';
+import { SwapCard, UpdateRow } from '@/components/social';
 import { Body, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
@@ -20,17 +22,28 @@ type Item = {
   mine: boolean;
   status: 'scheduled' | 'started' | 'completed' | 'skipped';
 };
+type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
+type SwapRow = { circleId: string; key: string; swap: Swap };
+type UpdateItem = { circleName: string; b: Broadcast };
+type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[] };
 
-// One invisible probe per circle reports today's rides upward so the home screen can
-// merge them into a single chronological list across every circle.
-function Probe({ circleId, onItems }: { circleId: string; onItems: (id: string, items: Item[]) => void }) {
+const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [] };
+const RECENT_MS = 12 * 60 * 60 * 1000;
+
+// One invisible probe per circle reports what matters upward, so the home screen can merge
+// everything into a single list across every circle.
+function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string, r: Report) => void }) {
   const { uid } = useSession();
-  const { circle, legs, overrides, days, runs, rotation, nameOf } = useCircle(circleId);
+  const { circle, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
   const date = toISO(new Date());
+  const tomorrow = addDays(date, 1);
 
-  const items = useMemo(() => {
-    if (!circle) return [];
-    return Object.entries(legs)
+  const report = useMemo((): Report => {
+    if (!circle) return EMPTY;
+    const label = (dir: 'AM' | 'PM') => `${circle.name} — ${dir === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
+    const entries = Object.entries(legs);
+
+    const items = entries
       .filter(([, leg]) => runsOn(leg, date))
       .map(([legId, leg]): Item => {
         const run = runs[runKey(legId, date)];
@@ -41,34 +54,116 @@ function Probe({ circleId, onItems }: { circleId: string; onItems: (id: string, 
           circleId,
           legId,
           date,
-          title: `${circle.name} — ${leg.direction === 'AM' ? 'AM dropoff' : 'PM pickup'}`,
+          title: label(leg.direction),
           start: effectiveWindow(legId, leg, date, overrides).start,
           driver: driver ? nameOf(driver) : 'No driver yet',
           mine: driver === uid,
           status: skipped ? 'skipped' : run?.status ?? 'scheduled',
         };
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [circle, legs, overrides, days, runs, rotation, uid, date]);
 
-  useEffect(() => onItems(circleId, items), [items, circleId, onItems]);
+    // "You drive tomorrow": shown from 5pm the evening before.
+    const reminders: Reminder[] =
+      new Date().getHours() >= 17
+        ? entries
+            .filter(([legId, leg]) => runsOn(leg, tomorrow) && !isSkipped(legId, tomorrow, overrides, days))
+            .filter(([legId, leg]) => driverFor(legId, leg, tomorrow, rotation, overrides, days) === uid)
+            .map(([legId, leg]) => ({
+              key: `${circleId}_${legId}_${tomorrow}`,
+              circleId,
+              legId,
+              date: tomorrow,
+              title: label(leg.direction),
+              start: effectiveWindow(legId, leg, tomorrow, overrides).start,
+            }))
+        : [];
+
+    const openSwaps = Object.entries(swaps)
+      .filter(([, s]) => s.status === 'open' && s.date >= date)
+      .map(([key, swap]) => ({ circleId, key, swap }));
+
+    const now = Date.now();
+    const updates = broadcasts
+      .filter((b) => now - b.createdAt < RECENT_MS && b.fromUid !== uid && b.type !== 'swap_requested')
+      .map((b) => ({ circleName: circle.name, b }));
+
+    return { items, reminders, swaps: openSwaps, updates };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [circle, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, date]);
+
+  useEffect(() => onReport(circleId, report), [report, circleId, onReport]);
   return null;
 }
 
 export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
-  const [byCircle, setByCircle] = useState<Record<string, Item[]>>({});
-  const onItems = useMemo(() => (id: string, items: Item[]) => setByCircle((b) => ({ ...b, [id]: items })), []);
-  const all = circleIds.flatMap((id) => byCircle[id] ?? []).sort((a, b) => a.start.localeCompare(b.start));
+  const { uid, profile } = useSession();
+  const [byCircle, setByCircle] = useState<Record<string, Report>>({});
+  const onReport = useMemo(() => (id: string, r: Report) => setByCircle((b) => ({ ...b, [id]: r })), []);
+  const reports = circleIds.map((id) => byCircle[id] ?? EMPTY);
+
+  const items = reports.flatMap((r) => r.items).sort((a, b) => a.start.localeCompare(b.start));
+  const reminders = reports.flatMap((r) => r.reminders);
+  const swaps = reports.flatMap((r) => r.swaps).sort((a, b) => a.swap.date.localeCompare(b.swap.date));
+  const updates = reports
+    .flatMap((r) => r.updates)
+    .sort((a, b) => b.b.createdAt - a.b.createdAt)
+    .slice(0, 4);
+  const myName = profile?.name ?? 'A parent';
 
   return (
     <>
       {circleIds.map((id) => (
-        <Probe key={id} circleId={id} onItems={onItems} />
+        <Probe key={id} circleId={id} onReport={onReport} />
       ))}
-      {all.length > 0 && (
+
+      {swaps.length > 0 && uid && (
+        <View style={{ gap: space.sm }}>
+          <Heading>Needs a driver</Heading>
+          {swaps.map(({ circleId, key, swap }) => (
+            <SwapCard
+              key={`${circleId}_${key}`}
+              swap={swap}
+              mine={swap.requesterUid === uid}
+              onCancel={() => cancelSwap(circleId, key)}
+              onAccept={async () => {
+                await acceptSwap(circleId, key, { uid, name: myName });
+                await sendBroadcast(circleId, { type: 'swap_accepted', fromUid: uid, fromName: myName, legId: swap.legId, legLabel: swap.legLabel, date: swap.date }).catch(() => {});
+              }}
+            />
+          ))}
+        </View>
+      )}
+
+      {reminders.length > 0 && (
+        <View style={{ gap: space.sm }}>
+          {reminders.map((r) => (
+            <Card key={r.key} onPress={() => router.push(`/circle/${r.circleId}/ride/${r.legId}?date=${r.date}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.accentSoft, borderColor: colors.accentSoft }}>
+              <Bell size={22} color={colors.accent} strokeWidth={2.25} />
+              <View style={{ flex: 1 }}>
+                <Body style={{ fontWeight: '700' }}>You drive tomorrow</Body>
+                <Small>
+                  {r.title} · {fmtTime(r.start)}
+                </Small>
+              </View>
+              <ChevronRight size={20} color={colors.accent} />
+            </Card>
+          ))}
+        </View>
+      )}
+
+      {updates.length > 0 && (
+        <View style={{ gap: space.sm }}>
+          <Heading>Latest updates</Heading>
+          {updates.map((u, i) => (
+            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide />
+          ))}
+        </View>
+      )}
+
+      {items.length > 0 && (
         <View style={{ gap: space.sm }}>
           <Heading>Today</Heading>
-          {all.map((it) => (
+          {items.map((it) => (
             <Card
               key={it.key}
               onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}

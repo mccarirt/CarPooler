@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, CircleSlash } from 'lucide-react-native';
-import { saveDay, saveOverride } from '@/lib/data';
+import { acceptSwap, cancelSwap, requestSwap, saveDay, saveOverride, sendBroadcast } from '@/lib/data';
+import { SwapCard } from '@/components/social';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import {
@@ -13,8 +14,8 @@ import { colors, radius, space } from '@/theme';
 
 export default function Agenda() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { uid } = useSession();
-  const { circle, legs, overrides, days, runs, rotation, nameOf } = useCircle(id);
+  const { uid, profile } = useSession();
+  const { circle, legs, overrides, days, runs, swaps, rotation, nameOf } = useCircle(id);
   const today = toISO(new Date());
   const [weekStart, setWeekStart] = useState(mondayOf(today));
   const [editing, setEditing] = useState<string | null>(null); // `${legId}_${date}` or `day_${date}`
@@ -120,6 +121,40 @@ export default function Agenda() {
                     </View>
                   </Card>
                   {o?.note && !skipped ? <Small style={{ marginLeft: space.sm }}>{o.note}</Small> : null}
+                  {(() => {
+                    const swap = swaps[key];
+                    const open = swap?.status === 'open' ? swap : undefined;
+                    const label = `${circle.name} — ${leg.direction === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
+                    const myName = profile?.name ?? 'A parent';
+                    if (skipped || !uid) return null;
+                    if (open)
+                      return (
+                        <SwapCard
+                          swap={open}
+                          mine={open.requesterUid === uid}
+                          showRide={false}
+                          onCancel={() => cancelSwap(id, key)}
+                          onAccept={async () => {
+                            await acceptSwap(id, key, { uid, name: myName });
+                            await sendBroadcast(id, { type: 'swap_accepted', fromUid: uid, fromName: myName, legId, legLabel: label, date }).catch(() => {});
+                          }}
+                        />
+                      );
+                    if (driver === uid && !runs[key] && date >= today)
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          style={{ minHeight: 44, justifyContent: 'center', marginLeft: space.sm }}
+                          onPress={async () => {
+                            await requestSwap(id, key, { legId, date, legLabel: label, start: leg.windowStart, requesterUid: uid, requesterName: myName }, swap?.status === 'cancelled');
+                            await sendBroadcast(id, { type: 'swap_requested', fromUid: uid, fromName: myName, legId, legLabel: label, date }).catch(() => {});
+                          }}
+                        >
+                          <Small style={{ color: colors.accent, fontWeight: '700' }}>Need a sub</Small>
+                        </Pressable>
+                      );
+                    return null;
+                  })()}
                   {!skipped && (
                     <Pressable accessibilityRole="button" onPress={() => router.push(`/circle/${id}/ride/${legId}?date=${date}`)} style={{ minHeight: 44, justifyContent: 'center', marginLeft: space.sm }}>
                       <Small style={{ color: colors.accent, fontWeight: '700' }}>{runs[overrideKey(legId, date)]?.status === 'started' ? 'Watch live' : 'Open ride'}</Small>

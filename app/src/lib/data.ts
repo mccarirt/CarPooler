@@ -179,3 +179,34 @@ export async function clearPosition(circleId: string, key: string) {
   await remove(ref(rtdb, livePath(circleId, key))).catch(() => {});
 }
 
+
+// ---------- broadcasts and swaps ----------
+import type { Broadcast, Swap } from './social';
+
+export async function sendBroadcast(circleId: string, b: Omit<Broadcast, 'createdAt'>) {
+  await addDoc(collection(db, 'circles', circleId, 'broadcasts'), JSON.parse(JSON.stringify({ ...b, createdAt: Date.now() })));
+}
+
+// The swap's document id is the ride-on-a-day key, so a leg can only have one swap per day.
+export async function requestSwap(circleId: string, key: string, swap: Omit<Swap, 'status' | 'createdAt'>, reopen: boolean) {
+  const ref = doc(db, 'circles', circleId, 'swaps', key);
+  if (reopen) await updateDoc(ref, { status: 'open', createdAt: Date.now() });
+  else await setDoc(ref, { ...swap, status: 'open', createdAt: Date.now() });
+}
+
+export async function cancelSwap(circleId: string, key: string) {
+  await updateDoc(doc(db, 'circles', circleId, 'swaps', key), { status: 'cancelled' });
+}
+
+// First one to commit wins: the rules only allow 'open' -> 'accepted', so a second accept is refused.
+export async function acceptSwap(circleId: string, key: string, me: { uid: string; name: string }) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'circles', circleId, 'swaps', key), {
+    status: 'accepted',
+    acceptedByUid: me.uid,
+    acceptedByName: me.name,
+    acceptedAt: Date.now(),
+  });
+  batch.set(doc(db, 'circles', circleId, 'instances', key), { driverUid: me.uid }, { merge: true });
+  await batch.commit();
+}

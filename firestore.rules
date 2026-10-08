@@ -15,6 +15,15 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/circles/$(cid)/members/$(request.auth.uid));
     }
 
+    // Did the requester just accept the swap for ride-and-day `key`, as themselves?
+    // `getAfter` looks at the data as it will be once this same save finishes.
+    function acceptedSwapBy(cid, key) {
+      let swap = getAfter(/databases/$(database)/documents/circles/$(cid)/swaps/$(key)).data;
+      return swap.status == 'accepted'
+        && swap.acceptedByUid == request.auth.uid
+        && request.resource.data.driverUid == request.auth.uid;
+    }
+
     // A person's own profile and their list of circles: visible to nobody else.
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
@@ -58,6 +67,62 @@ service cloud.firestore {
         allow read: if isMember(cid);
         allow create, update, delete: if isMember(cid)
           && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+
+        // The ONE thing a non-organizer may write here: put THEMSELVES in as the
+        // driver, and only when a swap for this exact ride-and-day was accepted by
+        // them in the same save. (They can't touch times or skips.)
+        allow create: if isMember(cid)
+          && request.resource.data.keys().hasOnly(['driverUid'])
+          && acceptedSwapBy(cid, key);
+        allow update: if isMember(cid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['driverUid'])
+          && acceptedSwapBy(cid, key);
+      }
+
+      // Swap requests: "I can't drive this one, who can?" The document id is the
+      // ride-and-day, so there is at most one per ride per day. Any member can see
+      // them; any OTHER member can accept an open one (first to save wins, because
+      // once it says accepted nobody else can accept it).
+      match /swaps/{key} {
+        allow read: if isMember(cid);
+        allow create: if isMember(cid)
+          && request.resource.data.requesterUid == request.auth.uid
+          && request.resource.data.status == 'open';
+        allow update: if isMember(cid) && (
+          // accept: open -> accepted, by someone other than the requester, as themselves
+          (resource.data.status == 'open'
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedByUid == request.auth.uid
+            && resource.data.requesterUid != request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'acceptedByUid', 'acceptedByName', 'acceptedAt']))
+          ||
+          // cancel: only the requester, only while open
+          (resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+            && resource.data.requesterUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+          ||
+          // ask again after cancelling: only the requester
+          (resource.data.status == 'cancelled'
+            && request.resource.data.status == 'open'
+            && resource.data.requesterUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'createdAt']))
+        );
+        allow delete: if false;
+      }
+
+      // One-tap status messages (running late, ride started, picked up...). Members
+      // can read them. You can only post as yourself, and they can never be edited
+      // or deleted afterward.
+      match /broadcasts/{id} {
+        allow read: if isMember(cid);
+        allow create: if isMember(cid)
+          && request.resource.data.fromUid == request.auth.uid
+          && request.resource.data.type in ['running_late', 'ride_started', 'arriving', 'picked_up',
+                                            'dropped_off', 'ride_completed', 'swap_requested', 'swap_accepted']
+          && request.resource.data.keys().hasAll(['type', 'fromUid', 'fromName', 'createdAt']);
+        allow update, delete: if false;
       }
       // A ride happening on a particular day (started, which stop, which kids are
       // picked up). Any member can see it. Whoever starts it becomes its driver, and
