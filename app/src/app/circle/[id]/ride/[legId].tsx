@@ -11,6 +11,7 @@ import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from
 import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
 import { driverFor, fmtTime, prettyDate, rideLabel, rideTitle, toISO } from '@/lib/schedule';
 import { useSession } from '@/lib/session';
+import { gpsDebug } from '@/lib/gpsDebug';
 import { useCircle } from '@/lib/useCircle';
 import Map from '@/components/Map';
 import { Avatar, Body, Button, Card, Centered, Chip, Heading, Small, Wrap } from '@/components/ui';
@@ -107,18 +108,37 @@ export default function RideDay() {
       const t = setInterval(step, 1000);
       return () => clearInterval(t);
     }
-    if (Platform.OS !== 'web' || !navigator.geolocation) return;
+    if (Platform.OS !== 'web' || !navigator.geolocation) {
+      gpsDebug.geo = 'this browser cannot share location';
+      return;
+    }
     let last = 0;
+    gpsDebug.watching = true;
+    gpsDebug.geo = 'waiting for a location fix (the browser may be asking permission)';
     const w = navigator.geolocation.watchPosition(
       (pos) => {
+        gpsDebug.geo = 'getting location, accurate to ' + Math.round(pos.coords.accuracy) + ' m';
+        gpsDebug.lastFixAt = Date.now();
         if (Date.now() - last < 3000) return;
         last = Date.now();
-        publishPosition(id, key, uid, pos.coords.latitude, pos.coords.longitude, false).catch(() => {});
+        publishPosition(id, key, uid, pos.coords.latitude, pos.coords.longitude, false)
+          .then(() => {
+            gpsDebug.publish = 'sent OK';
+            gpsDebug.lastSentAt = Date.now();
+          })
+          .catch((e: unknown) => {
+            gpsDebug.publish = 'FAILED to send: ' + (e instanceof Error ? e.message : String(e));
+          });
       },
-      () => {},
+      (err) => {
+        gpsDebug.geo = 'location blocked or unavailable (code ' + err.code + '): ' + err.message;
+      },
       { enableHighAccuracy: true, maximumAge: 2000 },
     );
-    return () => navigator.geolocation.clearWatch(w);
+    return () => {
+      gpsDebug.watching = false;
+      navigator.geolocation.clearWatch(w);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, route, run?.simulated, id, key, uid]);
 

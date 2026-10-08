@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
-import { Text, View } from 'react-native';
-import { ArrowLeftRight, Check, Clock, Flag, MapPin, Play, UserCheck } from 'lucide-react-native';
+import { Pressable, Text, View } from 'react-native';
+import { ArrowLeftRight, Check, ChevronRight, Clock, Flag, MapPin, Play, UserCheck } from 'lucide-react-native';
 import { Broadcast, broadcastText, Swap, timeAgo } from '@/lib/social';
 import { fmtTime, prettyDate } from '@/lib/schedule';
 import { Body, Button, Small } from '@/components/ui';
@@ -18,9 +18,9 @@ const ICONS: Record<Broadcast['type'], { icon: (c: string) => ReactNode; bg: str
 };
 
 // A persistent in-app status line. Nothing important lives only in a push notification (brief §8).
-export function UpdateRow({ b, showRide }: { b: Broadcast; showRide?: boolean }) {
+export function UpdateRow({ b, showRide, onPress }: { b: Broadcast; showRide?: boolean; onPress?: () => void }) {
   const s = ICONS[b.type];
-  return (
+  const row = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md }}>
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: s.bg, alignItems: 'center', justifyContent: 'center' }}>{s.icon(s.fg)}</View>
       <View style={{ flex: 1, gap: 2 }}>
@@ -30,7 +30,14 @@ export function UpdateRow({ b, showRide }: { b: Broadcast; showRide?: boolean })
           {timeAgo(b.createdAt)}
         </Small>
       </View>
+      {onPress && <ChevronRight size={20} color={colors.inkSoft} />}
     </View>
+  );
+  if (!onPress) return row;
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+      {row}
+    </Pressable>
   );
 }
 

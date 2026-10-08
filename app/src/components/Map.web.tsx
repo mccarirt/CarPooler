@@ -35,6 +35,7 @@ export default function Map({ stops, route, car }: MapProps) {
   const layer = useRef<L.LayerGroup | null>(null);
   const carMarker = useRef<L.Marker | null>(null);
   const fitted = useRef('');
+  const hasStops = useRef(false);
 
   useEffect(() => {
     injectStyles();
@@ -55,6 +56,7 @@ export default function Map({ stops, route, car }: MapProps) {
     const g = layer.current;
     if (!m || !g) return;
     g.clearLayers();
+    hasStops.current = stops.length > 0;
     if (route && route.length > 1) {
       L.polyline(route, { color: colors.ink, weight: 7, opacity: 0.12 }).addTo(g);
       L.polyline(route, { color: colors.accent, weight: 5, opacity: 0.95 }).addTo(g);
@@ -92,6 +94,8 @@ export default function Map({ stops, route, car }: MapProps) {
     } else {
       carMarker.current.setLatLng([car.lat, car.lng]);
     }
+    // Nothing pinned to frame the view? Follow the car so it is always on screen.
+    if (!hasStops.current) m.setView([car.lat, car.lng], Math.max(m.getZoom(), 15), { animate: true });
   }, [car]);
 
   return <div ref={el} style={{ position: 'absolute', inset: 0, background: colors.sunk }} />;

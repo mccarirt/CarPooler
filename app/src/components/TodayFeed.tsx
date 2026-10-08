@@ -33,7 +33,7 @@ type Item = {
 };
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
-type UpdateItem = { circleName: string; b: Broadcast };
+type UpdateItem = { circleId: string; circleName: string; b: Broadcast };
 type KidArc = { key: string; kidId: string; kidColor?: string; circleId: string; legId: string; date: string; kidName: string; step: number; label: string; place: string };
 type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidArc[] };
 
@@ -113,7 +113,7 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
     const now = Date.now();
     const updates = broadcasts
       .filter((b) => now - b.createdAt < RECENT_MS && b.fromUid !== uid && b.type !== 'swap_requested')
-      .map((b) => ({ circleName: circle.name, b }));
+      .map((b) => ({ circleId, circleName: circle.name, b }));
 
     // The day-long custody arc for each of my children (Uber ends at dropoff; a parent's day doesn't).
     const arcs: KidArc[] = [];
@@ -240,7 +240,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
         <View style={{ gap: space.sm }}>
           <Heading>Latest updates</Heading>
           {updates.map((u, i) => (
-            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide />
+            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide onPress={() => router.push("/circle/" + u.circleId + "/ride/" + u.b.legId + "?date=" + u.b.date)} />
           ))}
         </View>
       )}
@@ -391,6 +391,7 @@ function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
           </View>
         </View>
       )}
+      {it.status === 'started' && <Button label={it.mine ? 'Back to the ride' : 'Watch live'} onPress={open} />}
     </Card>
   );
 }
