@@ -1,7 +1,7 @@
 // Pure scheduling logic: no Firebase, no React. Dates are local 'YYYY-MM-DD' strings,
 // times are 'HH:MM' (24h), weekdays are ISO numbers (Mon=1 ... Sun=7).
 
-export type Stop = { label: string; time: string; kidIds: string[] };
+export type Stop = { label: string; time: string; kidIds: string[]; address?: string; lat?: number; lng?: number };
 export type Leg = {
   direction: 'AM' | 'PM';
   days: number[]; // recurring weekdays; ignored when `date` is set

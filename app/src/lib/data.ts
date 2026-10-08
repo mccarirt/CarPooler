@@ -10,7 +10,8 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { ref, remove, set } from 'firebase/database';
+import { auth, db, rtdb } from './firebase';
 
 export type Profile = { name: string; car: string };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
@@ -136,5 +137,43 @@ export async function saveDay(circleId: string, date: string, info: DayInfo) {
   const clean = JSON.parse(JSON.stringify(info));
   if (Object.keys(clean).length === 0) await deleteDoc(doc(db, 'circles', circleId, 'days', date));
   else await setDoc(doc(db, 'circles', circleId, 'days', date), clean);
+}
+
+
+// ---------- ride day ----------
+import type { KidState, Run } from './ride';
+
+export const runKey = (legId: string, date: string) => `${legId}_${date}`;
+
+export async function startRun(circleId: string, key: string, driverUid: string, kids: Record<string, KidState>, simulated: boolean) {
+  const run: Run = { driverUid, status: 'started', stopIndex: 0, arrived: false, kids, simulated, startedAt: Date.now() };
+  await setDoc(doc(db, 'circles', circleId, 'runs', key), run);
+}
+
+// `patch` may use dotted keys such as { 'kids.abc123': 'picked_up' }.
+export async function patchRun(circleId: string, key: string, patch: Record<string, unknown>) {
+  await updateDoc(doc(db, 'circles', circleId, 'runs', key), patch);
+}
+
+// ---------- live location (Realtime Database) ----------
+// Realtime Database rules can't see Firestore, so membership is mirrored there.
+// Safe to call repeatedly; it also backfills circles created before this existed.
+export async function ensureRealtimeAccess(circleId: string, inviteCode: string, isAdmin: boolean) {
+  const uid = await ensureSignedIn();
+  if (isAdmin) {
+    await set(ref(rtdb, `circleAdmins/${circleId}`), uid).catch(() => {});
+    await set(ref(rtdb, `inviteCodes/${inviteCode}`), circleId).catch(() => {});
+  }
+  await set(ref(rtdb, `circleMembers/${circleId}/${uid}`), { code: inviteCode }).catch(() => {});
+}
+
+export const livePath = (circleId: string, key: string) => `liveLegs/${circleId}/${key}`;
+
+export async function publishPosition(circleId: string, key: string, driverUid: string, lat: number, lng: number, sim: boolean) {
+  await set(ref(rtdb, livePath(circleId, key)), { driverUid, lat, lng, ts: Date.now(), sim });
+}
+
+export async function clearPosition(circleId: string, key: string) {
+  await remove(ref(rtdb, livePath(circleId, key))).catch(() => {});
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, CircleSlash } from 'lucide-react-native';
 import { saveDay, saveOverride } from '@/lib/data';
 import { useSession } from '@/lib/session';
@@ -14,7 +14,7 @@ import { colors, radius, space } from '@/theme';
 export default function Agenda() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { uid } = useSession();
-  const { circle, legs, overrides, days, rotation, nameOf } = useCircle(id);
+  const { circle, legs, overrides, days, runs, rotation, nameOf } = useCircle(id);
   const today = toISO(new Date());
   const [weekStart, setWeekStart] = useState(mondayOf(today));
   const [editing, setEditing] = useState<string | null>(null); // `${legId}_${date}` or `day_${date}`
@@ -120,6 +120,11 @@ export default function Agenda() {
                     </View>
                   </Card>
                   {o?.note && !skipped ? <Small style={{ marginLeft: space.sm }}>{o.note}</Small> : null}
+                  {!skipped && (
+                    <Pressable accessibilityRole="button" onPress={() => router.push(`/circle/${id}/ride/${legId}?date=${date}`)} style={{ minHeight: 44, justifyContent: 'center', marginLeft: space.sm }}>
+                      <Small style={{ color: colors.accent, fontWeight: '700' }}>{runs[overrideKey(legId, date)]?.status === 'started' ? 'Watch live' : 'Open ride'}</Small>
+                    </Pressable>
+                  )}
                   {editing === key && <LegDayEditor circleId={id} keyId={key} start={leg.windowStart} end={leg.windowEnd} override={o} onDone={() => setEditing(null)} />}
                 </View>
               );

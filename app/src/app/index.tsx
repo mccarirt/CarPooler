@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase';
 import { Membership, saveProfile } from '@/lib/data';
 import { useSession } from '@/lib/session';
 import { Body, Button, Card, Centered, Display, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
+import TodayFeed from '@/components/TodayFeed';
 import { colors, space } from '@/theme';
 
 export default function Home() {
@@ -78,6 +79,7 @@ function Circles({ name }: { name: string }) {
     <Screen footer={<Button label="Start a circle" icon={<Plus size={22} color="#fff" strokeWidth={2.5} />} onPress={() => router.push('/circle/new')} />}>
       <Gap size="md" />
       <Small>Hi, {name.split(' ')[0]}</Small>
+      {rows && rows.length > 0 && <TodayFeed circleIds={rows.map((r) => r.id)} />}
       <Title>Your circles</Title>
       {rows === null ? (
         <ActivityIndicator color={colors.accent} />

@@ -3,12 +3,13 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react-native';
 import { deleteLeg, saveLeg } from '@/lib/data';
+import { geocode } from '@/lib/geo';
 import { useCircle } from '@/lib/useCircle';
 import { addDays, fmtTime, Leg, parseTime, prettyDate, Stop, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
 import { Body, Button, Card, Centered, Chip, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, space } from '@/theme';
 
-type StopDraft = { label: string; time: string; kidIds: string[] };
+type StopDraft = { label: string; time: string; kidIds: string[]; address: string; lat?: number; lng?: number; found?: string };
 
 export default function LegEditor() {
   const { id, legId } = useLocalSearchParams<{ id: string; legId: string }>();
@@ -23,10 +24,11 @@ export default function LegEditor() {
   const [date, setDate] = useState(today);
   const [windowStart, setWindowStart] = useState('');
   const [windowEnd, setWindowEnd] = useState('');
-  const [stops, setStops] = useState<StopDraft[]>([{ label: '', time: '', kidIds: [] }]);
+  const [stops, setStops] = useState<StopDraft[]>([{ label: '', time: '', kidIds: [], address: '' }]);
   const [driverMode, setDriverMode] = useState<'rotation' | 'fixed'>('rotation');
   const [fixedUid, setFixedUid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [finding, setFinding] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Load an existing leg once it arrives.
@@ -40,7 +42,7 @@ export default function LegEditor() {
     setDate(leg.date ?? today);
     setWindowStart(fmtTime(leg.windowStart));
     setWindowEnd(leg.windowEnd ? fmtTime(leg.windowEnd) : '');
-    setStops(leg.stops.map((s) => ({ label: s.label, time: fmtTime(s.time), kidIds: s.kidIds })));
+    setStops(leg.stops.map((s) => ({ label: s.label, time: fmtTime(s.time), kidIds: s.kidIds, address: s.address ?? '', lat: s.lat, lng: s.lng, found: s.lat !== undefined ? 'Pinned on the map' : undefined })));
     setDriverMode(leg.driverMode);
     setFixedUid(leg.fixedUid ?? null);
     setLoaded(true);
@@ -63,6 +65,19 @@ export default function LegEditor() {
       return n;
     });
 
+  async function findStop(i: number) {
+    setFinding(i);
+    setError(null);
+    try {
+      const hit = await geocode(stops[i].address);
+      if (hit) patchStop(i, { lat: hit.lat, lng: hit.lng, found: hit.display.split(',').slice(0, 3).join(',') });
+      else setError('We could not find that address. Try adding the city and state.');
+    } catch {
+      setError('The address lookup is not responding. Try again in a moment.');
+    }
+    setFinding(null);
+  }
+
   async function save() {
     setError(null);
     const start = parseTime(windowStart);
@@ -79,7 +94,7 @@ export default function LegEditor() {
       if (!s.label.trim() && !s.time.trim()) continue;
       const t = parseTime(s.time);
       if (!s.label.trim() || !t) return setError('Each stop needs a name and a time like 7:50 AM.');
-      cleanStops.push({ label: s.label.trim(), time: t, kidIds: s.kidIds });
+      cleanStops.push({ label: s.label.trim(), time: t, kidIds: s.kidIds, ...(s.address.trim() ? { address: s.address.trim() } : {}), ...(s.lat !== undefined && s.lng !== undefined ? { lat: s.lat, lng: s.lng } : {}) });
     }
     if (cleanStops.length === 0) return setError('Add at least one stop.');
     if (driverMode === 'fixed' && !fixedUid) return setError('Choose which parent always drives this ride.');
@@ -174,6 +189,16 @@ export default function LegEditor() {
           </View>
           <Field label="Where" value={s.label} onChangeText={(v) => patchStop(i, { label: v })} placeholder={i === stops.length - 1 && direction === 'AM' ? 'Lincoln Elementary' : 'The Hendersons'} />
           <Field label="Time" value={s.time} onChangeText={(v) => patchStop(i, { time: v })} placeholder="7:50 AM" />
+          <Field
+            label="Street address (for the map)"
+            value={s.address}
+            onChangeText={(v) => patchStop(i, { address: v, lat: undefined, lng: undefined, found: undefined })}
+            placeholder="123 Maple St, Springfield"
+            hint={s.found ? `${s.found}${s.lat !== undefined ? ' ✓' : ''}` : 'Optional. Without it, this stop shows up in the list but not on the map.'}
+          />
+          {s.address.trim() && s.lat === undefined && (
+            <Button variant="secondary" label="Find on map" loading={finding === i} onPress={() => findStop(i)} />
+          )}
           {kids.length > 0 && (
             <View style={{ gap: space.sm }}>
               <Body>Kids at this stop</Body>
@@ -186,7 +211,7 @@ export default function LegEditor() {
           )}
         </Card>
       ))}
-      <Button variant="secondary" label="Add a stop" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => setStops((s) => [...s, { label: '', time: '', kidIds: [] }])} />
+      <Button variant="secondary" label="Add a stop" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => setStops((s) => [...s, { label: '', time: '', kidIds: [], address: '' }])} />
 
       <Heading>Who drives</Heading>
       <Wrap>

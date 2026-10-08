@@ -59,6 +59,16 @@ service cloud.firestore {
         allow create, update, delete: if isMember(cid)
           && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
       }
+      // A ride happening on a particular day (started, which stop, which kids are
+      // picked up). Any member can see it. Whoever starts it becomes its driver, and
+      // from then on ONLY that driver can change it. Nobody can delete one.
+      match /runs/{key} {
+        allow read: if isMember(cid);
+        allow create: if isMember(cid) && request.resource.data.driverUid == request.auth.uid;
+        allow update: if isMember(cid) && resource.data.driverUid == request.auth.uid
+          && request.resource.data.driverUid == resource.data.driverUid;
+        allow delete: if false;
+      }
       match /days/{date} {
         allow read: if isMember(cid);
         allow create, update, delete: if isMember(cid)

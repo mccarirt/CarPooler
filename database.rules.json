@@ -1,6 +1,40 @@
 {
   "rules": {
     ".read": false,
-    ".write": false
+    ".write": false,
+
+    "circleAdmins": {
+      "$cid": {
+        ".write": "auth != null && (!data.exists() || data.val() === auth.uid) && newData.val() === auth.uid"
+      }
+    },
+
+    "inviteCodes": {
+      "$code": {
+        ".write": "auth != null && newData.isString() && (!data.exists() || data.val() === newData.val()) && root.child('circleAdmins').child(newData.val()).val() === auth.uid"
+      }
+    },
+
+    "circleMembers": {
+      "$cid": {
+        ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists()",
+        "$uid": {
+          ".write": "auth != null && $uid === auth.uid && (root.child('circleAdmins').child($cid).val() === auth.uid || root.child('inviteCodes').child(newData.child('code').val()).val() === $cid)",
+          ".validate": "newData.hasChild('code')"
+        }
+      }
+    },
+
+    "liveLegs": {
+      "$cid": {
+        "$run": {
+          ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists()",
+          ".write": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists() && (!data.exists() || data.child('driverUid').val() === auth.uid) && (!newData.exists() || newData.child('driverUid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['driverUid', 'lat', 'lng', 'ts'])",
+          "lat": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+          "lng": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" }
+        }
+      }
+    }
   }
 }

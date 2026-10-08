@@ -3,6 +3,7 @@ import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { Circle, Kid, Member } from './data';
 import { Days, DayInfo, Leg, Override, Overrides, resolveRotation } from './schedule';
+import type { Run } from './ride';
 
 export type KidRow = Kid & { id: string };
 
@@ -14,6 +15,7 @@ export function useCircle(id: string) {
   const [legs, setLegs] = useState<Record<string, Leg>>({});
   const [overrides, setOverrides] = useState<Overrides>({});
   const [days, setDays] = useState<Days>({});
+  const [runs, setRuns] = useState<Record<string, Run>>({});
 
   useEffect(() => {
     const noop = () => {};
@@ -24,6 +26,7 @@ export function useCircle(id: string) {
       onSnapshot(collection(db, 'circles', id, 'legs'), (s) => setLegs(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as Leg]))), noop),
       onSnapshot(collection(db, 'circles', id, 'instances'), (s) => setOverrides(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as Override]))), noop),
       onSnapshot(collection(db, 'circles', id, 'days'), (s) => setDays(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as DayInfo]))), noop),
+      onSnapshot(collection(db, 'circles', id, 'runs'), (s) => setRuns(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as Run]))), noop),
     ];
     return () => unsubs.forEach((u) => u());
   }, [id]);
@@ -34,5 +37,5 @@ export function useCircle(id: string) {
   );
   const nameOf = (uid: string | null) => members.find((m) => m.uid === uid)?.name ?? 'Unassigned';
 
-  return { circle, members, kids, legs, overrides, days, rotation, nameOf };
+  return { circle, members, kids, legs, overrides, days, runs, rotation, nameOf };
 }
