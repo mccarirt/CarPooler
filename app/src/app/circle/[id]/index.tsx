@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-nativ
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Plus } from 'lucide-react-native';
 import { guardiansOf, isOrganizer, PUBLIC_URL, saveRotation, setCoOrganizers } from '@/lib/data';
+import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
@@ -91,26 +92,62 @@ export default function CircleDetail() {
           </Body>
         </Card>
       ) : (
-        legList.map(([legId, leg]) => (
-          <Card
-            key={legId}
-            onPress={isAdmin ? () => router.push(`/circle/${id}/leg/${legId}`) : undefined}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}
-          >
-            <View style={{ flex: 1 }}>
-              <Heading>{rideTitle(leg)}</Heading>
-              <Small>
-                {leg.date ? 'One day only' : leg.days.map((d) => WEEKDAY_SHORT[d - 1]).join(' · ')} · {fmtTime(leg.windowStart)}
-                {leg.windowEnd ? `–${fmtTime(leg.windowEnd)}` : ''}
-              </Small>
-              <Small>
-                {leg.stops.length} stop{leg.stops.length === 1 ? '' : 's'} ·{' '}
-                {leg.driverMode === 'fixed' ? `Always ${nameOf(leg.fixedUid ?? null)}` : 'Rotating drivers'}
-              </Small>
-            </View>
-            {isAdmin && <ChevronRight size={22} color={colors.inkSoft} />}
-          </Card>
-        ))
+        legList.map(([legId, leg]) => {
+          const riders = kidIdsOf(leg.stops).flatMap((kidId) => {
+            const k = kids.find((x) => x.id === kidId);
+            return k ? [k] : [];
+          });
+          const fixed = leg.driverMode === 'fixed' ? members.find((m) => m.uid === leg.fixedUid) : undefined;
+          return (
+            <Card key={legId} onPress={isAdmin ? () => router.push(`/circle/${id}/leg/${legId}`) : undefined} style={{ gap: space.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                <View style={{ flex: 1 }}>
+                  <Heading>{rideTitle(leg)}</Heading>
+                  <Small>
+                    {leg.date ? 'One day only' : leg.days.map((d) => WEEKDAY_SHORT[d - 1]).join(' · ')} · {fmtTime(leg.windowStart)}
+                    {leg.windowEnd ? `–${fmtTime(leg.windowEnd)}` : ''}
+                  </Small>
+                  <Small>
+                    {leg.stops.length} stop{leg.stops.length === 1 ? '' : 's'}
+                  </Small>
+                </View>
+                {isAdmin && <ChevronRight size={22} color={colors.inkSoft} />}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
+                  {riders.slice(0, 4).map((k, i) => (
+                    <View key={k.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                      <Avatar name={k.name} size={28} id={k.id} colorKey={k.color} ring />
+                    </View>
+                  ))}
+                  {riders.length > 0 && (
+                    <Small style={{ marginLeft: space.sm, flexShrink: 1 }}>{riders.map((k) => k.name.split(' ')[0]).join(', ')}</Small>
+                  )}
+                </View>
+                {fixed ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                    <Small style={{ color: colors.ink, fontWeight: '600' }}>Always {fixed.name.split(' ')[0]}</Small>
+                    <Avatar name={fixed.name} size={32} id={fixed.uid} colorKey={fixed.color} />
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                    <Small style={{ color: colors.ink, fontWeight: '600' }}>Taking turns</Small>
+                    <View style={{ flexDirection: 'row' }}>
+                      {rotation.slice(0, 4).map((u, i) => {
+                        const m = members.find((x) => x.uid === u);
+                        return (
+                          <View key={u} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                            <Avatar name={m?.name ?? '?'} size={32} id={u} colorKey={m?.color} ring />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </View>
+            </Card>
+          );
+        })
       )}
       {isAdmin && (
         <Button variant="secondary" label="Add a ride" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => router.push(`/circle/${id}/leg/new`)} />
@@ -126,6 +163,7 @@ export default function CircleDetail() {
           <View key={u} style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
               <Body style={{ width: 24, fontWeight: '700' }}>{i + 1}</Body>
+              <Avatar name={nameOf(u)} size={32} id={u} colorKey={members.find((m) => m.uid === u)?.color} />
               <View style={{ flex: 1 }}>
                 <Body>{nameOf(u)}</Body>
               </View>
