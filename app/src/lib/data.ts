@@ -64,6 +64,7 @@ export async function createCircle(name: string, profile: Profile) {
   batch.set(doc(db, 'invites', code), { circleId: circleRef.id, circleName });
   batch.set(doc(db, 'users', uid, 'memberships', circleRef.id), { circleName, role: 'admin' });
   await batch.commit();
+  await ensureRealtimeAccess(circleRef.id, code, true).catch(() => {}); // lets members share live location later
   return circleRef.id;
 }
 
@@ -89,6 +90,7 @@ export async function joinCircle(code: string, profile: Profile) {
     role: 'member',
   });
   await batch.commit();
+  await ensureRealtimeAccess(invite.circleId, code, false).catch(() => {});
   return invite.circleId;
 }
 
