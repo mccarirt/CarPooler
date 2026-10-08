@@ -8,7 +8,7 @@ import { rtdb } from '@/lib/firebase';
 import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, livePath, patchRun, publishPosition, requestSwap, runKey, sendBroadcast, startRun } from '@/lib/data';
 import type { BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
-import { initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryLabel } from '@/lib/ride';
+import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
 import { driverFor, fmtTime, prettyDate, toISO } from '@/lib/schedule';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
@@ -190,8 +190,10 @@ export default function RideDay() {
   }
 
   // ---- actions ----
+  const kidName = (k: string) => kids.find((x) => x.id === k)?.name ?? 'Child';
   const actions = run ? kidActions(leg.direction, stops, run) : {};
   const lastStop = stopIndex === stops.length - 1;
+  const prim = primaryAction(run, stops, actions, kidName);
 
   const legLabel = `${circle.name} — ${leg.direction === 'AM' ? 'AM dropoff' : 'PM pickup'}`;
   const myName = profile?.name ?? 'A parent';
@@ -222,30 +224,55 @@ export default function RideDay() {
     await announce('running_late', { minutes });
   }
 
-  async function primary() {
-    if (!uid) return;
+  // Confirm one or more children. Once everyone at this stop is dealt with the ride moves on to
+  // the next stop by itself, and after the last stop it completes itself: no "I'm here",
+  // "Leave" or "Complete" taps needed for the usual case.
+  async function confirmKids(updates: Record<string, KidState>) {
+    if (!run) return;
     setBusy(true);
     try {
-      if (!run) {
-        await startRun(id, key, uid, initialKids(kidIds), simulate && !!route);
-        await announce('ride_started');
-      } else if (!run.arrived) await patchRun(id, key, { arrived: true });
-      else if (lastStop) {
-        const patch: Record<string, unknown> = { status: 'completed', completedAt: Date.now() };
-        // Morning: anyone still riding gets dropped at the destination.
-        if (leg.direction === 'AM') for (const k of kidIds) if (run.kids[k] === 'picked_up') patch[`kids.${k}`] = 'dropped_off';
-        await patchRun(id, key, patch);
+      const patch: Record<string, unknown> = {};
+      for (const [k, to] of Object.entries(updates)) patch[`kids.${k}`] = to;
+      const next = afterConfirm(leg.direction, stops, run, updates);
+      if (next === 'next') {
+        patch.stopIndex = stopIndex + 1;
+        patch.arrived = false;
+      }
+      if (next === 'complete') {
+        patch.status = 'completed';
+        patch.completedAt = Date.now();
+      }
+      await patchRun(id, key, patch);
+      for (const [k, to] of Object.entries(updates)) await announce(to === 'picked_up' ? 'picked_up' : 'dropped_off', { kidName: kidName(k) });
+      if (next === 'complete') {
         await clearPosition(id, key);
         await announce('ride_completed');
-      } else await patchRun(id, key, { stopIndex: stopIndex + 1, arrived: false });
+      }
     } finally {
       setBusy(false);
     }
   }
-  async function confirmKid(kidId: string, to: KidState) {
-    await patchRun(id, key, { [`kids.${kidId}`]: to });
-    await announce(to === 'picked_up' ? 'picked_up' : 'dropped_off', { kidName: kidName(kidId) });
+  const confirmKid = (kidId: string, to: KidState) => confirmKids({ [kidId]: to });
+
+  async function primary() {
+    if (!uid) return;
+    if (prim.kind === 'confirm') return confirmKids(Object.fromEntries(Object.entries(actions).map(([k, a]) => [k, a.to])));
+    setBusy(true);
+    try {
+      if (prim.kind === 'start') {
+        await startRun(id, key, uid, initialKids(kidIds), simulate && !!route);
+        await announce('ride_started');
+      } else if (prim.kind === 'complete') {
+        await patchRun(id, key, { status: 'completed', completedAt: Date.now() });
+        await clearPosition(id, key);
+        await announce('ride_completed');
+      } else if (prim.kind === 'leave') await patchRun(id, key, { stopIndex: stopIndex + 1, arrived: false });
+    } finally {
+      setBusy(false);
+    }
   }
+  // A child is not coming (sick, staying late): move on without confirming them.
+  const skipStop = () => patchRun(id, key, { stopIndex: stopIndex + 1, arrived: false });
   // Tell the family at the next stop that we are almost there, once per stop.
   // If the ride has only just started and the driver is already at the first stop (starting from
   // home, say), there is nothing to announce.
@@ -261,7 +288,6 @@ export default function RideDay() {
       ? [{ lat: s.lat, lng: s.lng, n: i + 1, label: s.label, done: completed || (started && i < stopIndex), current: started && i === stopIndex }]
       : [],
   );
-  const kidName = (k: string) => kids.find((x) => x.id === k)?.name ?? 'Child';
   const driverFirst = (driver?.name ?? 'The driver').split(' ')[0];
 
   return (
@@ -448,6 +474,11 @@ export default function RideDay() {
                     <Button variant="secondary" label="Running late" onPress={() => setLateOpen(true)} />
                   </View>
                 )}
+                {started && !lastStop && Object.keys(actions).length > 0 && (
+                  <View style={{ flex: 1 }}>
+                    <Button variant="secondary" label="Skip this stop" onPress={skipStop} disabled={busy} />
+                  </View>
+                )}
                 {!run && !openSwap && (
                   <View style={{ flex: 1 }}>
                     <Button variant="secondary" label="Need a sub" onPress={askForSub} disabled={busy} />
@@ -461,7 +492,7 @@ export default function RideDay() {
               </View>
             )}
             {isDriver && !completed ? (
-              <Button label={primaryLabel(run, stops)} onPress={primary} loading={busy} />
+              <Button label={prim.label} onPress={primary} loading={busy} />
             ) : completed ? (
               <Body soft style={{ textAlign: 'center' }}>This ride is finished. Nothing is tracked after it ends.</Body>
             ) : (

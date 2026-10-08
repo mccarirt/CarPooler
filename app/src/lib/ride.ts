@@ -27,7 +27,7 @@ export function kidIdsOf(stops: Stop[]) {
 // What can the driver confirm right now, per kid?
 export function kidActions(direction: 'AM' | 'PM', stops: Stop[], run: Run): Record<string, { to: KidState; label: string }> {
   const out: Record<string, { to: KidState; label: string }> = {};
-  if (run.status !== 'started' || !run.arrived) return out;
+  if (run.status !== 'started') return out;
   const dest = destinationIndex(direction, stops);
   const here = run.stopIndex;
   for (const kidId of kidIdsOf(stops)) {
@@ -58,11 +58,41 @@ export function initialKids(kidIds: string[]): Record<string, KidState> {
   return Object.fromEntries(kidIds.map((k) => [k, 'waiting' as KidState]));
 }
 
-// Primary-button label for the driver, evolving with state.
-export function primaryLabel(run: Run | undefined, stops: Stop[]) {
-  if (!run) return 'Start leg';
-  if (run.status === 'completed') return 'Leg complete';
-  const stop = stops[run.stopIndex];
-  if (!run.arrived) return `I'm here at ${stop.label}`;
-  return run.stopIndex === stops.length - 1 ? 'Complete leg' : `Leave ${stop.label}`;
+export type Primary = { kind: 'start' | 'confirm' | 'leave' | 'complete' | 'done'; label: string };
+
+const firstName = (n: string) => n.split(' ')[0];
+function nameList(names: string[]) {
+  if (names.length === 1) return firstName(names[0]);
+  if (names.length === 2) return `${firstName(names[0])} and ${firstName(names[1])}`;
+  return `${names.length} kids`;
 }
+
+// The one big button for the driver, evolving with state. When children are waiting at the
+// current stop it IS the confirmation ("Picked up Leia"), so there is no separate "I'm here".
+export function primaryAction(
+  run: Run | undefined,
+  stops: Stop[],
+  pending: Record<string, { to: KidState; label: string }>,
+  nameOf: (kidId: string) => string,
+): Primary {
+  if (!run) return { kind: 'start', label: 'Start leg' };
+  if (run.status === 'completed') return { kind: 'done', label: 'Leg complete' };
+  const ids = Object.keys(pending);
+  if (ids.length > 0) return { kind: 'confirm', label: `${pending[ids[0]].label} ${nameList(ids.map(nameOf))}` };
+  if (run.stopIndex === stops.length - 1) return { kind: 'complete', label: 'Complete leg' };
+  return { kind: 'leave', label: `Leave ${stops[run.stopIndex].label}` };
+}
+
+// What to write after confirming `updates`: the next stop once everyone there is dealt with, or
+// the end of the ride after the last stop. Returns null when nothing should move on yet.
+export function afterConfirm(
+  direction: 'AM' | 'PM',
+  stops: Stop[],
+  run: Run,
+  updates: Record<string, KidState>,
+): 'next' | 'complete' | null {
+  const moved: Run = { ...run, kids: { ...run.kids, ...updates } };
+  if (Object.keys(kidActions(direction, stops, moved)).length > 0) return null;
+  return run.stopIndex === stops.length - 1 ? 'complete' : 'next';
+}
+
