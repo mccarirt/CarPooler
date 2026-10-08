@@ -52,7 +52,12 @@ export default function Map({ stops, route, car }: MapProps) {
       if (icon) icon.style.transition = '';
     });
     m.on('zoomend', () => (zooming.current = false));
+    // Leaflet only draws as much as it was last told it has. When the box changes size (the sheet
+    // folding away, a phone turning), tell it, or the new space stays blank.
+    const watcher = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => m.invalidateSize()) : null;
+    watcher?.observe(el.current);
     return () => {
+      watcher?.disconnect();
       m.remove();
       map.current = null;
     };
