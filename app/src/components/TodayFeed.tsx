@@ -308,39 +308,31 @@ export function WeekFeed({ circleIds, weekStart }: { circleIds: string[]; weekSt
   );
 }
 
-// One ride in a list, kept compact: time, ride name and status share the top line; the second line
-// says dropoff or pickup, who is going, and who is driving, as colored avatars so it reads at a glance.
-// Tapping it opens the ride, where everything you can do with it lives.
+// One ride in a list. The driver's colored avatar leads, so scrolling down the left edge tells you
+// who is driving each ride at a glance. Time and ride name share the top line; the second line says
+// dropoff or pickup, who is going, and who drives. A status badge appears only when it says something
+// (live, done, skipped): "scheduled" is the default and would just be noise on every row.
+// Tapping the card opens the ride, where everything you can do with it lives.
 function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
+  const kidNames = it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ');
+  const driver = it.mine ? 'You drive' : `${it.driverName.split(' ')[0]} drives`;
   return (
     <Card
       onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}
-      style={{ gap: space.sm, paddingVertical: space.sm + 4, opacity: it.status === 'skipped' ? 0.5 : 1 }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm + 4, opacity: it.status === 'skipped' ? 0.5 : 1 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-        <Heading>{fmtTime(it.start)}</Heading>
-        <Body style={{ fontWeight: '700', flex: 1 }}>{it.title}</Body>
-        <StatusDot status={it.status} />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
-          <Small style={{ marginRight: space.sm }}>
-            {showCircle ? `${it.circleName} · ` : ''}
-            {it.dir}
-          </Small>
-          {it.kidsOn.slice(0, 4).map((k, i) => (
-            <View key={k.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
-              <Avatar name={k.name} size={28} id={k.id} colorKey={k.color} ring />
-            </View>
-          ))}
-          {it.kidsOn.length > 0 && (
-            <Small style={{ marginLeft: space.sm, flexShrink: 1 }}>{it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ')}</Small>
-          )}
-        </View>
+      <Avatar name={it.driverName} size={44} id={it.driverId ?? undefined} colorKey={it.driverColor} />
+      <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <Small style={{ color: colors.ink, fontWeight: '600' }}>{it.mine ? 'You' : it.driverName.split(' ')[0]}</Small>
-          <Avatar name={it.driverName} size={32} id={it.driverId ?? undefined} colorKey={it.driverColor} />
+          <Heading>{fmtTime(it.start)}</Heading>
+          <Body style={{ fontWeight: '700', flex: 1 }}>{it.title}</Body>
+          {it.status !== 'scheduled' && <StatusDot status={it.status} />}
         </View>
+        <Small>
+          {showCircle ? `${it.circleName} · ` : ''}
+          {it.dir}
+          {kidNames ? ` · ${kidNames}` : ''} · {driver}
+        </Small>
       </View>
     </Card>
   );
