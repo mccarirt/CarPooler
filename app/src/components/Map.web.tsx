@@ -98,5 +98,6 @@ export default function Map({ stops, route, car }: MapProps) {
     if (!hasStops.current) m.setView([car.lat, car.lng], Math.max(m.getZoom(), 15), { animate: true });
   }, [car]);
 
-  return <div ref={el} style={{ position: 'absolute', inset: 0, background: colors.sunk }} />;
+  // zIndex 0 boxes the map's own layers in, so nothing on top of it (the back button) gets covered.
+  return <div ref={el} style={{ position: 'absolute', inset: 0, zIndex: 0, background: colors.sunk }} />;
 }

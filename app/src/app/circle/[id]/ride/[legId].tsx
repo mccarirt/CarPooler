@@ -348,7 +348,7 @@ export default function RideDay() {
           accessibilityRole="button"
           accessibilityLabel="Back"
           onPress={() => (router.canGoBack() ? router.back() : router.replace(`/circle/${id}`))}
-          style={{ position: 'absolute', top: space.md, left: space.md, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}
+          style={{ position: 'absolute', zIndex: 10, top: space.md, left: space.md, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}
         >
           <ChevronLeft size={26} color={colors.ink} strokeWidth={2.25} />
         </Pressable>
