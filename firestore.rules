@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Is the person making this request signed in (anonymous counts)?
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Is the requester a member of circle `cid`? Membership = having a doc at
+    // circles/{cid}/members/{their uid}. This is the one gate for all circle data.
+    function isMember(cid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/circles/$(cid)/members/$(request.auth.uid));
+    }
+
+    // A person's own profile and their list of circles: visible to nobody else.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+
+      match /memberships/{cid} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Invite codes. You can fetch ONE if you already know its code, but nobody
+    // can list them. The long random code is the key. Only a circle's organizer
+    // can create one, and they can never be changed afterward.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && getAfter(/databases/$(database)/documents/circles/$(request.resource.data.circleId)).data.adminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /circles/{cid} {
+      // Only members can read the circle. Strangers get nothing.
+      allow read: if isMember(cid);
+      // Anyone can start a circle, but only as its organizer.
+      allow create: if signedIn() && request.resource.data.adminUid == request.auth.uid;
+      // Only the organizer can edit it, and circles can't be deleted yet.
+      allow update: if signedIn() && resource.data.adminUid == request.auth.uid;
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(cid);
+
+        // You can only ever add YOURSELF, and only one of two ways:
+        //  1) you are the organizer who just created this circle, or
+        //  2) you hold a valid invite code for this exact circle.
+        allow create: if signedIn() && request.auth.uid == uid && (
+          (request.resource.data.role == 'admin'
+            && getAfter(/databases/$(database)/documents/circles/$(cid)).data.adminUid == uid)
+          ||
+          (request.resource.data.role == 'member'
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.circleId == cid)
+        );
+
+        // You can change your own name and car, nothing else (not your role).
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'car']);
+        // You can leave a circle.
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
+      match /kids/{kidId} {
+        // Every member of the circle can see its kids' profiles.
+        allow read: if isMember(cid);
+        // Only a parent can add a child, and it's recorded as theirs.
+        allow create: if isMember(cid) && request.resource.data.ownerUid == request.auth.uid;
+        // Only the child's own parent can edit or remove the profile.
+        allow update: if isMember(cid) && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid;
+        allow delete: if isMember(cid) && resource.data.ownerUid == request.auth.uid;
+      }
+    }
+
+    // Anything not listed above is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
