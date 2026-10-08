@@ -40,9 +40,30 @@ service cloud.firestore {
       allow read: if isMember(cid);
       // Anyone can start a circle, but only as its organizer.
       allow create: if signedIn() && request.resource.data.adminUid == request.auth.uid;
-      // Only the organizer can edit it, and circles can't be deleted yet.
-      allow update: if signedIn() && resource.data.adminUid == request.auth.uid;
+      // Only the organizer can edit it, and only its name and rotation order.
+      // (They can't hand the circle to someone else or change the invite code.)
+      allow update: if signedIn() && resource.data.adminUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation']);
       allow delete: if false;
+
+      // The schedule. Every member can see it; only the organizer can change it.
+      // `legs` = the recurring/one-off rides. `instances` = a change to one leg on
+      // one day (skip it, new time). `days` = a change to a whole day (holiday).
+      match /legs/{legId} {
+        allow read: if isMember(cid);
+        allow create, update, delete: if isMember(cid)
+          && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+      }
+      match /instances/{key} {
+        allow read: if isMember(cid);
+        allow create, update, delete: if isMember(cid)
+          && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+      }
+      match /days/{date} {
+        allow read: if isMember(cid);
+        allow create, update, delete: if isMember(cid)
+          && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
+      }
 
       match /members/{uid} {
         allow read: if isMember(cid);

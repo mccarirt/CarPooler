@@ -15,7 +15,7 @@ import { auth, db } from './firebase';
 export type Profile = { name: string; car: string };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
 export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member' };
-export type Circle = { name: string; adminUid: string; inviteCode: string };
+export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[] };
 export type Kid = {
   name: string;
   notes: string;
@@ -108,3 +108,33 @@ export async function updateKid(circleId: string, kidId: string, kid: Omit<Kid, 
 export async function deleteKid(circleId: string, kidId: string) {
   await deleteDoc(doc(db, 'circles', circleId, 'kids', kidId));
 }
+
+// ---------- schedule ----------
+import type { DayInfo, Leg, Override } from './schedule';
+
+export async function saveLeg(circleId: string, legId: string | null, leg: Leg) {
+  const clean = JSON.parse(JSON.stringify(leg)); // Firestore rejects undefined fields
+  if (legId) await setDoc(doc(db, 'circles', circleId, 'legs', legId), clean);
+  else await addDoc(collection(db, 'circles', circleId, 'legs'), clean);
+}
+
+export async function deleteLeg(circleId: string, legId: string) {
+  await deleteDoc(doc(db, 'circles', circleId, 'legs', legId));
+}
+
+export async function saveRotation(circleId: string, rotation: string[]) {
+  await updateDoc(doc(db, 'circles', circleId), { rotation });
+}
+
+export async function saveOverride(circleId: string, key: string, override: Override) {
+  const clean = JSON.parse(JSON.stringify(override));
+  if (Object.keys(clean).length === 0) await deleteDoc(doc(db, 'circles', circleId, 'instances', key));
+  else await setDoc(doc(db, 'circles', circleId, 'instances', key), clean);
+}
+
+export async function saveDay(circleId: string, date: string, info: DayInfo) {
+  const clean = JSON.parse(JSON.stringify(info));
+  if (Object.keys(clean).length === 0) await deleteDoc(doc(db, 'circles', circleId, 'days', date));
+  else await setDoc(doc(db, 'circles', circleId, 'days', date), clean);
+}
+

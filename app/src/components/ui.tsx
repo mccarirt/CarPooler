@@ -219,3 +219,28 @@ const s = StyleSheet.create({
   },
   error: { backgroundColor: '#FBE4E2', borderRadius: radius.sm, padding: space.md },
 });
+
+export function Chip({ label, on, onPress, small }: { label: string; on: boolean; onPress: () => void; small?: boolean }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      onPress={onPress}
+      style={{
+        minHeight: small ? 40 : 48,
+        paddingHorizontal: space.md,
+        borderRadius: radius.pill,
+        justifyContent: 'center',
+        backgroundColor: on ? colors.ink : colors.surface,
+        borderWidth: 1.5,
+        borderColor: on ? colors.ink : colors.line,
+      }}
+    >
+      <Text style={[font.label, { color: on ? '#fff' : colors.ink }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function Wrap({ children }: { children: ReactNode }) {
+  return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>{children}</View>;
+}
