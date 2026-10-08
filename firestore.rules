@@ -193,8 +193,12 @@ service cloud.firestore {
         // You can change your own name, car, avatar color and map icon, nothing else (not your role).
         allow update: if signedIn() && request.auth.uid == uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'car', 'color', 'icon']);
-        // You can leave a circle.
-        allow delete: if signedIn() && request.auth.uid == uid;
+        // You can leave a circle. An organizer can also remove another member's card (for example when
+        // that parent has a new phone and comes back as a new person), but never the circle's starter.
+        allow delete: if signedIn() && (
+          request.auth.uid == uid
+          || (isOrganizer(cid) && uid != get(/databases/$(database)/documents/circles/$(cid)).data.adminUid)
+        );
       }
 
       match /kids/{kidId} {

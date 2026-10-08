@@ -338,3 +338,78 @@ export async function saveHome(home: Place, household: { id: string } | null) {
   const places = ((await getDoc(doc(db, 'users', uid))).data() as { places?: Place[] } | undefined)?.places ?? [];
   await savePlaces([home, ...places.filter((p) => p.label.trim().toLowerCase() !== 'home')]);
 }
+
+// ---------- a family's new phone ----------
+// A sign-in lives in one browser, so a parent who loses it comes back as a brand-new person. An organizer
+// can hand everything the old one held to the new one: rides that always use them, their turn in the
+// driving order, their place as a parent on children the organizer can edit, driver changes still ahead,
+// and a spot in the organizer's household. The old card is then removed. Returns what changed, as plain text.
+export async function handOverMember(circleId: string, oldUid: string, newUid: string, today: string) {
+  const me = await ensureSignedIn();
+  const notes: string[] = [];
+  const swap = (list: string[]) => [...new Set(list.map((u) => (u === oldUid ? newUid : u)))];
+
+  // Rides that always use the old parent.
+  const legs = await getDocs(collection(db, 'circles', circleId, 'legs'));
+  let n = 0;
+  for (const l of legs.docs) {
+    if ((l.data() as { fixedUid?: string }).fixedUid === oldUid) {
+      await updateDoc(l.ref, { fixedUid: newUid });
+      n++;
+    }
+  }
+  if (n) notes.push(`${n} ride${n === 1 ? '' : 's'} now use the new phone`);
+
+  // Driver changes still to come.
+  const inst = await getDocs(collection(db, 'circles', circleId, 'instances'));
+  n = 0;
+  for (const o of inst.docs) {
+    const date = o.id.split('_')[1] ?? '';
+    if ((o.data() as { driverUid?: string }).driverUid === oldUid && date >= today) {
+      await updateDoc(o.ref, { driverUid: newUid });
+      n++;
+    }
+  }
+  if (n) notes.push(`${n} upcoming driver change${n === 1 ? '' : 's'} moved`);
+
+  // The driving order and (for the circle's starter) the co-organizer list.
+  const circleRef = doc(db, 'circles', circleId);
+  const circle = (await getDoc(circleRef)).data() as Circle;
+  const rotation = (circle.rotation ?? []).includes(oldUid) ? swap(circle.rotation ?? []) : null;
+  const patch: Record<string, unknown> = {};
+  if (rotation) patch.rotation = rotation;
+  if (circle.adminUid === me && circle.coOrganizerUids?.includes(oldUid)) patch.coOrganizerUids = swap(circle.coOrganizerUids);
+  if (Object.keys(patch).length) {
+    await updateDoc(circleRef, patch);
+    notes.push('driving order updated');
+  }
+
+  // Children the organizer is a parent of.
+  const kids = await getDocs(collection(db, 'circles', circleId, 'kids'));
+  n = 0;
+  for (const k of kids.docs) {
+    const kid = k.data() as Kid;
+    const current = guardiansOf(kid);
+    if (!current.includes(oldUid) || !current.includes(me)) continue;
+    await updateDoc(k.ref, { guardianUids: swap(current) });
+    n++;
+  }
+  if (n) notes.push(`${n} child profile${n === 1 ? '' : 's'} shared with the new phone`);
+
+  // The organizer's own household.
+  const mine = await getDocs(query(collection(db, 'households'), where('memberUids', 'array-contains', me)));
+  for (const h of mine.docs) {
+    const uids = (h.data() as HouseholdDoc).memberUids;
+    if (uids.includes(oldUid)) {
+      await updateDoc(h.ref, { memberUids: swap(uids) });
+      notes.push('household updated');
+    }
+  }
+  const profile = (await getDoc(doc(db, 'users', me))).data() as Profile | undefined;
+  if (profile?.household?.includes(oldUid)) await setDoc(doc(db, 'users', me), { household: swap(profile.household) }, { merge: true });
+
+  // Last, remove the old card.
+  await deleteDoc(doc(db, 'circles', circleId, 'members', oldUid));
+  notes.push('old card removed');
+  return notes;
+}

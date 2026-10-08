@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Pencil, Plus } from 'lucide-react-native';
-import { guardiansOf, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
+import { guardiansOf, handOverMember, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
 import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
-import { Avatar, Body, Button, Card, Centered, EmptyState, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
+import { Avatar, Body, Button, Card, Centered, Chip, EmptyState, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 export default function CircleDetail() {
@@ -280,6 +280,9 @@ export default function CircleDetail() {
               }
             />
           )}
+          {isOrganizer(circle, uid) && m.uid !== uid && m.uid !== circle.adminUid && members.length > 2 && (
+            <HandOver circleId={id} oldUid={m.uid} oldName={m.name} others={members.filter((x) => x.uid !== m.uid && x.uid !== uid)} today={today} />
+          )}
           {m.uid === uid && (
             <Button variant="ghost" label="Add a child" icon={<Plus size={20} color={colors.ink} strokeWidth={2.5} />} onPress={() => router.push(`/circle/${id}/kid/new`)} />
           )}
@@ -299,5 +302,42 @@ function ReorderButton({ label, onPress, disabled, icon }: { label: string; onPr
     >
       {icon}
     </Pressable>
+  );
+}
+
+// For an organizer: a parent lost their sign-in (new phone, cleared browser) and came back as a new person.
+// Pick the new card and everything the old one held moves across; then the old card goes away.
+function HandOver({ circleId, oldUid, oldName, others, today }: { circleId: string; oldUid: string; oldName: string; others: { uid: string; name: string }[]; today: string }) {
+  const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string[] | null>(null);
+  if (done) return <Small style={{ color: colors.ok, fontWeight: '600' }}>Handed over: {done.join(', ')}.</Small>;
+  if (!open) return <Button variant="ghost" label="Back on a new phone?" onPress={() => setOpen(true)} />;
+  async function go() {
+    if (!target) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDone(await handOverMember(circleId, oldUid, target, today));
+    } catch {
+      setError('Could not finish the hand-over. Nothing is lost; you can try again.');
+      setBusy(false);
+    }
+  }
+  return (
+    <View style={{ gap: space.sm }}>
+      <Body style={{ fontWeight: '600' }}>Which card is {oldName.split(' ')[0]}'s new phone?</Body>
+      <Small>The new card has to be in this circle already (they join with the invite link). Their rides, turns and children move to it, and this old card is removed.</Small>
+      <Wrap>
+        {others.map((o) => (
+          <Chip key={o.uid} label={o.name} on={target === o.uid} onPress={() => setTarget(o.uid)} />
+        ))}
+      </Wrap>
+      <ErrorNote message={error} />
+      <Button label="Hand over" onPress={go} loading={busy} disabled={!target} />
+      <Button variant="ghost" label="Never mind" onPress={() => setOpen(false)} disabled={busy} />
+    </View>
   );
 }
