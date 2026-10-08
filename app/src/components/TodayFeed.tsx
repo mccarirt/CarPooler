@@ -308,37 +308,33 @@ export function WeekFeed({ circleIds, weekStart }: { circleIds: string[]; weekSt
   );
 }
 
-// One ride in a list. Deliberately plain: time and status on top, the name across the full width,
-// then who is going and who is driving, shown as colored avatars so it reads at a glance.
+// One ride in a list, kept compact: time, ride name and status share the top line; the second line
+// says dropoff or pickup, who is going, and who is driving, as colored avatars so it reads at a glance.
 // Tapping it opens the ride, where everything you can do with it lives.
 function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
   return (
     <Card
       onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}
-      style={{ gap: space.sm, opacity: it.status === 'skipped' ? 0.5 : 1 }}
+      style={{ gap: space.sm, paddingVertical: space.sm + 4, opacity: it.status === 'skipped' ? 0.5 : 1 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
         <Heading>{fmtTime(it.start)}</Heading>
+        <Body style={{ fontWeight: '700', flex: 1 }}>{it.title}</Body>
         <StatusDot status={it.status} />
-      </View>
-      <View style={{ gap: 2 }}>
-        <Body style={{ fontWeight: '700' }}>{it.title}</Body>
-        <Small>
-          {showCircle ? `${it.circleName} · ` : ''}
-          {it.dir}
-        </Small>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
+          <Small style={{ marginRight: space.sm }}>
+            {showCircle ? `${it.circleName} · ` : ''}
+            {it.dir}
+          </Small>
           {it.kidsOn.slice(0, 4).map((k, i) => (
             <View key={k.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
               <Avatar name={k.name} size={28} id={k.id} colorKey={k.color} ring />
             </View>
           ))}
           {it.kidsOn.length > 0 && (
-            <Small style={{ marginLeft: space.sm, flexShrink: 1 }} >
-              {it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ')}
-            </Small>
+            <Small style={{ marginLeft: space.sm, flexShrink: 1 }}>{it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ')}</Small>
           )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>

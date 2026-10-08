@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { Check, ChevronLeft } from 'lucide-react-native';
 import { colors, font, radius, space, tap } from '@/theme';
 import { colorFor, PALETTE } from '@/lib/palette';
 
@@ -149,8 +149,10 @@ export function initialsOf(name: string) {
 // chosen colorKey, if any) to give them their own color; without an id it falls back to plain styles.
 export function Avatar({ name, size = 48, tone = 'accent', id, colorKey, ring }: { name: string; size?: number; tone?: 'accent' | 'sun'; id?: string; colorKey?: string | null; ring?: boolean }) {
   const c = id ? colorFor(id, colorKey) : null;
-  const bg = c ? c.bg : tone === 'accent' ? colors.accentSoft : colors.sunk;
-  const fg = c ? c.fg : tone === 'accent' ? colors.accent : colors.ink;
+  // A person's avatar is a solid color with white initials: much easier to tell apart at a glance
+  // than a pastel. Without an id (no person to color) the old soft look is kept.
+  const bg = c ? c.fg : tone === 'accent' ? colors.accentSoft : colors.sunk;
+  const fg = c ? '#FFFFFF' : tone === 'accent' ? colors.accent : colors.ink;
   return (
     <View
       style={{
@@ -182,9 +184,11 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (key
             accessibilityLabel={c.label}
             accessibilityState={{ selected: on }}
             onPress={() => onChange(c.key)}
-            style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', borderWidth: on ? 3 : 1.5, borderColor: on ? c.fg : colors.line }}
+            style={{ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: on ? colors.ink : 'transparent' }}
           >
-            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: c.fg }} />
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.fg, alignItems: 'center', justifyContent: 'center' }}>
+              {on && <Check size={22} color="#FFFFFF" strokeWidth={3} />}
+            </View>
           </Pressable>
         );
       })}
