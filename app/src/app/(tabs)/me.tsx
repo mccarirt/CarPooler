@@ -42,6 +42,8 @@ export default function Me() {
         <Body soft>Children you add to a circle show up here.</Body>
       )}
 
+      <Button variant="ghost" label="Diagnostics (for troubleshooting)" onPress={() => router.push('/debug')} />
+
       <Card style={{ gap: space.xs, backgroundColor: colors.sunk, borderColor: colors.sunk }}>
         <Body style={{ fontWeight: '600' }}>Signed in on this device</Body>
         <Small>

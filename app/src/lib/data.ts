@@ -279,3 +279,11 @@ export async function setHousehold(next: string[], previous: string[]) {
   if (changed > 0) await batch.commit();
   return changed;
 }
+
+// ---------- correcting the record ----------
+// Record a ride that was never tracked live (or fix one that was): the person who drove it saves what
+// happened to each child. Whoever saves becomes the ride's driver of record.
+export async function logRun(circleId: string, key: string, driverUid: string, kids: Record<string, KidState>, stopCount: number) {
+  const run: Run = { driverUid, status: 'completed', stopIndex: Math.max(0, stopCount - 1), arrived: false, kids, simulated: false, startedAt: Date.now(), completedAt: Date.now() };
+  await setDoc(doc(db, 'circles', circleId, 'runs', key), run);
+}

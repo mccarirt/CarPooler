@@ -1,7 +1,7 @@
 // Ride-day state machine helpers. Pure: no Firebase, no React.
 import type { Stop } from './schedule';
 
-export type KidState = 'waiting' | 'picked_up' | 'dropped_off';
+export type KidState = 'waiting' | 'picked_up' | 'dropped_off' | 'absent'; // absent = did not ride this time
 export type Run = {
   driverUid: string;
   status: 'started' | 'completed';

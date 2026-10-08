@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { onValue, ref } from 'firebase/database';
 import { Car, ChevronLeft, Navigation } from 'lucide-react-native';
 import { rtdb } from '@/lib/firebase';
-import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, isOrganizer, livePath, patchRun, publishPosition, requestSwap, runKey, saveOverride, sendBroadcast, startRun } from '@/lib/data';
+import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, isOrganizer, livePath, patchRun, publishPosition, logRun, requestSwap, runKey, saveOverride, sendBroadcast, startRun } from '@/lib/data';
 import type { BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
 import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
@@ -13,7 +13,7 @@ import { driverFor, fmtTime, prettyDate, rideLabel, rideTitle, toISO } from '@/l
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import Map from '@/components/Map';
-import { Avatar, Body, Button, Centered, Chip, Heading, Small, Wrap } from '@/components/ui';
+import { Avatar, Body, Button, Card, Centered, Chip, Heading, Small, Wrap } from '@/components/ui';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { colors, font, radius, space } from '@/theme';
 
@@ -40,6 +40,9 @@ export default function RideDay() {
   const [busy, setBusy] = useState(false);
   const [lateOpen, setLateOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [fixOpen, setFixOpen] = useState(false);
+  const [fixKids, setFixKids] = useState<Record<string, KidState>>({});
+  const [fixError, setFixError] = useState<string | null>(null);
   const [farArmed, setFarArmed] = useState(false); // first tap when far from the stop only arms the button
   const sheetRef = useRef<ScrollView>(null);
   const [, tick] = useState(0);
@@ -227,6 +230,34 @@ export default function RideDay() {
     try {
       await saveOverride(id, key, { ...overrides[key], driverUid: driverUid === normalDriver ? undefined : driverUid });
       setAssignOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Correcting the record after the fact. The ride's driver (or an organizer) can say what really
+  // happened to each child, whether or not the ride was tracked live. Nothing is locked in.
+  const todayIso = toISO(new Date());
+  const pastUntracked = !run && date < todayIso;
+  const canFix = !!circle && !!uid && (run ? run.status === 'completed' || date < todayIso : date < todayIso) && (isDriver || isOrganizer(circle, uid));
+  function openFix() {
+    setFixError(null);
+    setFixKids(Object.fromEntries(kidIds.map((k) => [k, run?.kids[k] === 'absent' ? 'absent' : 'dropped_off'])) as Record<string, KidState>);
+    setFixOpen(true);
+  }
+  async function saveFix() {
+    if (!uid) return;
+    setBusy(true);
+    setFixError(null);
+    try {
+      if (run) {
+        const patch: Record<string, unknown> = { status: 'completed', completedAt: run.completedAt ?? Date.now() };
+        for (const [k, v] of Object.entries(fixKids)) patch['kids.' + k] = v;
+        await patchRun(id, key, patch);
+      } else await logRun(id, key, uid, fixKids, stops.length);
+      await clearPosition(id, key);
+      setFixOpen(false);
+    } catch {
+      setFixError("Couldn't save that. Only the driver or an organizer can correct a ride.");
     } finally {
       setBusy(false);
     }
@@ -465,13 +496,38 @@ export default function RideDay() {
                 );
               })}
             </View>
+
+            {canFix && (
+              <View style={{ gap: space.sm }}>
+                {!fixOpen ? (
+                  <Button variant="secondary" label={completed ? 'Fix what happened' : 'Log what happened'} onPress={openFix} />
+                ) : (
+                  <Card style={{ gap: space.md }}>
+                    <Heading>{completed ? 'Fix what happened' : 'Log what happened'}</Heading>
+                    <Small>Say how this ride really went. It replaces what was recorded.</Small>
+                    {kidIds.map((k) => (
+                      <View key={k} style={{ gap: space.sm }}>
+                        <Body style={{ fontWeight: '600' }}>{kidName(k)}</Body>
+                        <Wrap>
+                          <Chip label="Rode and arrived" on={fixKids[k] !== 'absent'} onPress={() => setFixKids((f) => ({ ...f, [k]: 'dropped_off' }))} />
+                          <Chip label="Didn't ride" on={fixKids[k] === 'absent'} onPress={() => setFixKids((f) => ({ ...f, [k]: 'absent' }))} />
+                        </Wrap>
+                      </View>
+                    ))}
+                    {fixError && <Small style={{ color: colors.danger }}>{fixError}</Small>}
+                    <Button label="Save" onPress={saveFix} loading={busy} />
+                    <Button variant="ghost" label="Cancel" onPress={() => setFixOpen(false)} disabled={busy} />
+                  </Card>
+                )}
+              </View>
+            )}
           </View>
         </ScrollView>
 
         {/* ---------- one evolving primary action ---------- */}
         <View style={{ width: '100%', alignItems: 'center', paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.md, borderTopWidth: 1, borderTopColor: colors.line }}>
           <View style={{ width: '100%', maxWidth: 560, gap: space.sm }}>
-            {isDriver && !run && route && (
+            {isDriver && !run && route && !pastUntracked && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
                 <Chip small label="Simulated driver (demo)" on={simulate} onPress={() => setSimulate((s) => !s)} />
                 <Small style={{ flex: 1 }}>Try the ride without driving.</Small>
@@ -488,7 +544,7 @@ export default function RideDay() {
                 </Wrap>
               </View>
             )}
-            {!completed && (isDriver || canAssign) && (
+            {!completed && !pastUntracked && (isDriver || canAssign) && (
               <View style={{ flexDirection: 'row', gap: space.sm }}>
                 {isDriver && !lateOpen && (
                   <View style={{ flex: 1 }}>
@@ -527,7 +583,9 @@ export default function RideDay() {
                 </Wrap>
               </View>
             )}
-            {isDriver && !completed ? (
+            {pastUntracked ? (
+              <Body soft style={{ textAlign: 'center' }}>This ride was in the past and was not tracked. Use Log what happened above to record it.</Body>
+            ) : isDriver && !completed ? (
               <Button label={farArmed && prim.kind === 'confirm' ? `Not there yet. ${prim.label} anyway?` : prim.label} onPress={primary} loading={busy} />
             ) : completed ? (
               <Body soft style={{ textAlign: 'center' }}>This ride is finished. Nothing is tracked after it ends.</Body>
@@ -559,6 +617,7 @@ function StatePill({ state, ended }: { state: KidState; ended?: boolean }) {
     waiting: { text: 'Waiting', bg: colors.sunk, fg: colors.inkSoft },
     picked_up: { text: 'Picked up', bg: colors.accentSoft, fg: colors.accent },
     dropped_off: { text: 'Dropped off', bg: colors.okSoft, fg: colors.ok },
+    absent: { text: "Didn't ride", bg: colors.sunk, fg: colors.inkSoft },
   }[state];
   return (
     <View style={{ backgroundColor: map.bg, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 }}>

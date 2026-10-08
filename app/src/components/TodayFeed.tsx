@@ -132,7 +132,7 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
       const amDoneAt = Math.max(0, ...amRuns.map((r) => r.completedAt ?? 0));
       // A ride the driver ended without confirming this child. Say what we do and don't know.
       const unconfirmed = (rs: Run[], arrival: string) =>
-        stateIn(rs).includes('picked_up') ? `Ride ended, ${arrival} not confirmed` : "Ride ended, pickup not confirmed";
+        stateIn(rs).includes('absent') ? "Didn't ride" : stateIn(rs).includes('picked_up') ? `Ride ended, ${arrival} not confirmed` : "Ride ended, pickup not confirmed";
       const am = amLegs[0];
       const pm = pmLegs[0];
       const first = (am ?? pm)!;
