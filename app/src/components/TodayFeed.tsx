@@ -8,7 +8,7 @@ import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg,
 import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
-import { kidIdsOf } from '@/lib/ride';
+import { kidIdsOf, Run } from '@/lib/ride';
 import { Avatar, Body, Card, Heading, Small } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
@@ -117,23 +117,35 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
     const arcs: KidArc[] = [];
     const live = entries.filter(([legId, leg]) => runsOn(leg, today) && !isSkipped(legId, today, overrides, days));
     for (const kid of kids.filter((k) => !!uid && guardiansOf(k).includes(uid))) {
-      const has = (dir: 'AM' | 'PM') => live.find(([, leg]) => leg.direction === dir && leg.stops.some((s) => s.kidIds.includes(kid.id)));
-      const am = has('AM');
-      const pm = has('PM');
-      if (!am && !pm) continue;
-      const amRun = am ? runs[runKey(am[0], today)] : undefined;
-      const pmRun = pm ? runs[runKey(pm[0], today)] : undefined;
-      const amDone = amRun?.kids?.[kid.id] === 'dropped_off';
-      const pmHome = pmRun?.kids?.[kid.id] === 'dropped_off';
+      // Every ride today that includes this child, not just the first: a duplicate ride or a second
+      // driver's run must not hide what actually happened.
+      const legsFor = (dir: 'AM' | 'PM') => live.filter(([, leg]) => leg.direction === dir && leg.stops.some((s) => s.kidIds.includes(kid.id)));
+      const amLegs = legsFor('AM');
+      const pmLegs = legsFor('PM');
+      if (amLegs.length === 0 && pmLegs.length === 0) continue;
+      const runsOf = (ls: typeof amLegs) => ls.map(([id]) => runs[runKey(id, today)]).filter((r): r is Run => !!r);
+      const amRuns = runsOf(amLegs);
+      const pmRuns = runsOf(pmLegs);
+      const stateIn = (rs: Run[]) => rs.map((r) => r.kids?.[kid.id]);
+      const amDone = stateIn(amRuns).includes('dropped_off');
+      const pmHome = stateIn(pmRuns).includes('dropped_off');
+      const amDoneAt = Math.max(0, ...amRuns.map((r) => r.completedAt ?? 0));
+      // A ride the driver ended without confirming this child. Say what we do and don't know.
+      const unconfirmed = (rs: Run[], arrival: string) =>
+        stateIn(rs).includes('picked_up') ? `Ride ended, ${arrival} not confirmed` : "Ride ended, pickup not confirmed";
+      const am = amLegs[0];
+      const pm = pmLegs[0];
       const first = (am ?? pm)!;
       let step = -1;
-      const place = (am ?? pm)![1].name?.trim() || 'school'; // where the child spends the middle of the day
+      const place = first[1].name?.trim() || 'school'; // where the child spends the middle of the day
       let label = am ? `Dropoff at ${fmtTime(effectiveWindow(am[0], am[1], today, overrides).start)}` : `Pickup at ${fmtTime(effectiveWindow(pm![0], pm![1], today, overrides).start)}`;
       let target = first;
       if (pmHome) { step = 3; label = 'Home safe'; target = pm!; }
-      else if (pmRun?.status === 'started') { step = 2; label = 'On the way home'; target = pm!; }
-      else if (amDone) { step = Date.now() - (amRun?.completedAt ?? 0) < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? `Dropped off at ${place}` : `At ${place}`; target = pm ?? am!; }
-      else if (amRun?.status === 'started') { label = 'On the way'; }
+      else if (pmRuns.some((r) => r.status === 'started')) { step = 2; label = 'On the way home'; target = pm!; }
+      else if (pmRuns.some((r) => r.status === 'completed')) { step = amDone ? 1 : -1; label = unconfirmed(pmRuns, 'arrival home'); target = pm!; }
+      else if (amDone) { step = Date.now() - amDoneAt < 10 * 60 * 1000 ? 0 : 1; label = step === 0 ? `Dropped off at ${place}` : `At ${place}`; target = pm ?? am!; }
+      else if (amRuns.some((r) => r.status === 'started')) { label = 'On the way'; }
+      else if (amRuns.some((r) => r.status === 'completed')) { label = unconfirmed(amRuns, `arrival at ${place}`); }
       arcs.push({ key: `${circleId}_${kid.id}`, kidId: kid.id, kidColor: kid.color, circleId, legId: target[0], date: today, kidName: kid.name, step, label, place });
     }
 

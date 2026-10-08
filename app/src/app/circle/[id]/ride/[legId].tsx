@@ -440,7 +440,7 @@ export default function RideDay() {
                           <Text style={[font.label, { color: '#fff' }]}>{act.label}</Text>
                         </Pressable>
                       ) : (
-                        <StatePill state={st} />
+                        <StatePill state={st} ended={completed} />
                       )}
                     </View>
                   );
@@ -551,8 +551,11 @@ function Pill({ text, bad }: { text: string; bad?: boolean }) {
   );
 }
 
-function StatePill({ state }: { state: KidState }) {
-  const map = {
+function StatePill({ state, ended }: { state: KidState; ended?: boolean }) {
+  // After the ride is over, "waiting" would be misleading: say what we do and do not know.
+  const map = ended && state !== 'dropped_off'
+    ? { text: state === 'picked_up' ? 'Dropoff not confirmed' : 'Not confirmed', bg: '#FBE9CF', fg: '#8A5300' }
+    : {
     waiting: { text: 'Waiting', bg: colors.sunk, fg: colors.inkSoft },
     picked_up: { text: 'Picked up', bg: colors.accentSoft, fg: colors.accent },
     dropped_off: { text: 'Dropped off', bg: colors.okSoft, fg: colors.ok },
