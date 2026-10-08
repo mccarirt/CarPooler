@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { colors, mode } from '@/theme';
 
 // Tells the phone what this app is called and looks like, so "Add to Home screen" gives a proper tile
 // that opens full-screen without the browser's address bar. (The static page Expo builds is fixed, so
@@ -21,7 +22,8 @@ export function setUpHead() {
     Object.entries(extra).forEach(([k, v]) => l.setAttribute(k, v));
     h.appendChild(l);
   };
-  meta('theme-color', '#FBF7F0');
+  meta('theme-color', colors.bg);
+  meta('color-scheme', mode);
   meta('description', 'Share the school and sports runs with the parents you trust.');
   meta('mobile-web-app-capable', 'yes');
   meta('apple-mobile-web-app-capable', 'yes');
@@ -29,5 +31,6 @@ export function setUpHead() {
   link('manifest', '/manifest.webmanifest');
   link('icon', '/favicon.png', { type: 'image/png' });
   link('apple-touch-icon', '/apple-touch-icon.png');
-  document.body.style.backgroundColor = '#FBF7F0';
+  document.body.style.backgroundColor = colors.bg;
+  document.documentElement.style.colorScheme = mode;
 }

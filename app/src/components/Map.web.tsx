@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { colors } from '@/theme';
+import { colors, mode } from '@/theme';
 import { vehicleFor } from '@/lib/vehicles';
 import type { MapProps } from './mapTypes';
 
@@ -20,11 +20,11 @@ function injectStyles() {
   style.textContent = `
     .cc-pin{width:32px;height:32px;border-radius:16px;background:${colors.surface};color:${colors.ink};border:3px solid ${colors.ink};
       display:flex;align-items:center;justify-content:center;font:800 14px 'Hanken Grotesk',system-ui,sans-serif;box-sizing:border-box}
-    .cc-pin.current{background:${colors.accent};border-color:${colors.accent};color:#fff;transform:scale(1.15)}
-    .cc-pin.done{background:${colors.ink};color:#fff;opacity:.55}
+    .cc-pin.current{background:${colors.accent};border-color:${colors.accent};color:${colors.onAccent};transform:scale(1.15)}
+    .cc-pin.done{background:${colors.ink};color:${colors.onInk};opacity:.55}
     .cc-car{width:28px;height:28px;border-radius:14px;border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);box-sizing:border-box}
     .cc-car.v{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center}
-    .leaflet-tile-pane{filter:saturate(.65) sepia(.18) brightness(1.03)}
+    ${mode === 'dark' ? '.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) saturate(.45) sepia(.35) brightness(.78) contrast(.92)}' : '.leaflet-tile-pane{filter:saturate(.65) sepia(.18) brightness(1.03)}'}
   `;
   document.head.appendChild(style);
 }
@@ -75,7 +75,7 @@ export default function Map({ stops, route, car, routeColor, carIcon }: MapProps
     g.clearLayers();
     hasStops.current = stops.length > 0;
     if (route && route.length > 1) {
-      L.polyline(route, { color: colors.ink, weight: 7, opacity: 0.12 }).addTo(g);
+      L.polyline(route, { color: mode === 'dark' ? '#000' : colors.ink, weight: 7, opacity: mode === 'dark' ? 0.4 : 0.12 }).addTo(g);
       L.polyline(route, { color: tint, weight: 5, opacity: 0.95 }).addTo(g);
     }
     stops.forEach((s) => {

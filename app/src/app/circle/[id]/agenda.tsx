@@ -79,7 +79,7 @@ export default function Agenda() {
               <Heading>{prettyDate(date)}</Heading>
               {date === today && (
                 <View style={{ backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 2 }}>
-                  <Small style={{ color: '#fff' }}>Today</Small>
+                  <Small style={{ color: colors.onAccent }}>Today</Small>
                 </View>
               )}
               <View style={{ flex: 1 }} />

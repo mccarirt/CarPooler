@@ -130,7 +130,7 @@ export default function CircleDetail() {
           icon={<CalendarDays size={24} color={colors.accent} strokeWidth={2} />}
           title="No rides yet"
           body={isAdmin ? 'Add the morning dropoff or the afternoon pickup. The app takes turns between drivers for you.' : 'The organizer has not set up any rides yet. They will show up here.'}
-          action={isAdmin ? { label: 'Add the first ride', icon: <Plus size={22} color="#fff" strokeWidth={2.5} />, onPress: () => router.push('/circle/' + id + '/leg/new') } : undefined}
+          action={isAdmin ? { label: 'Add the first ride', icon: <Plus size={22} color={colors.onAccent} strokeWidth={2.5} />, onPress: () => router.push('/circle/' + id + '/leg/new') } : undefined}
         />
       ) : (
         legList.map(([legId, leg]) => {

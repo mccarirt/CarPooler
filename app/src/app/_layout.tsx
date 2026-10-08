@@ -4,7 +4,7 @@ import { SessionProvider } from '@/lib/session';
 import { loadFonts } from '@/lib/fonts';
 import { setUpHead } from '@/lib/head';
 import LocationSharer from '@/components/LocationSharer';
-import { colors } from '@/theme';
+import { colors, mode } from '@/theme';
 
 loadFonts();
 setUpHead();
@@ -12,7 +12,7 @@ setUpHead();
 export default function RootLayout() {
   return (
     <SessionProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <LocationSharer />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
     </SessionProvider>

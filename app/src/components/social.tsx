@@ -7,13 +7,13 @@ import { Body, Button, Small } from '@/components/ui';
 import { colors, font, radius, space } from '@/theme';
 
 const ICONS: Record<Broadcast['type'], { icon: (c: string) => ReactNode; bg: string; fg: string }> = {
-  running_late: { icon: (c) => <Clock size={20} color={c} strokeWidth={2.25} />, bg: '#FBE9CF', fg: '#8A5300' },
+  running_late: { icon: (c) => <Clock size={20} color={c} strokeWidth={2.25} />, bg: colors.warnBg, fg: colors.warnFg },
   ride_started: { icon: (c) => <Play size={20} color={c} strokeWidth={2.25} />, bg: colors.accentSoft, fg: colors.accent },
   arriving: { icon: (c) => <MapPin size={20} color={c} strokeWidth={2.25} />, bg: colors.accentSoft, fg: colors.accent },
   picked_up: { icon: (c) => <Check size={20} color={c} strokeWidth={2.5} />, bg: colors.okSoft, fg: colors.ok },
   dropped_off: { icon: (c) => <Check size={20} color={c} strokeWidth={2.5} />, bg: colors.okSoft, fg: colors.ok },
   ride_completed: { icon: (c) => <Flag size={20} color={c} strokeWidth={2.25} />, bg: colors.okSoft, fg: colors.ok },
-  swap_requested: { icon: (c) => <ArrowLeftRight size={20} color={c} strokeWidth={2.25} />, bg: '#FBE9CF', fg: '#8A5300' },
+  swap_requested: { icon: (c) => <ArrowLeftRight size={20} color={c} strokeWidth={2.25} />, bg: colors.warnBg, fg: colors.warnFg },
   swap_accepted: { icon: (c) => <UserCheck size={20} color={c} strokeWidth={2.25} />, bg: colors.okSoft, fg: colors.ok },
 };
 
@@ -102,9 +102,9 @@ export function SwapCard({
     setBusy(false);
   }
   return (
-    <View style={{ backgroundColor: '#FFF4DD', borderRadius: radius.md, borderWidth: 1, borderColor: '#F0D9A8', padding: space.md, gap: space.sm }}>
+    <View style={{ backgroundColor: colors.warnCard, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warnLine, padding: space.md, gap: space.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-        <ArrowLeftRight size={20} color="#8A5300" strokeWidth={2.25} />
+        <ArrowLeftRight size={20} color={colors.warnFg} strokeWidth={2.25} />
         <Text style={[font.heading, { color: colors.ink, flex: 1 }]}>{mine ? 'You asked for a sub' : `${swap.requesterName.split(' ')[0]} needs a sub`}</Text>
       </View>
       <Body>

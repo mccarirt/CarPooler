@@ -40,10 +40,10 @@ export default function Today() {
         <SkeletonCard />
       ) : rows.length === 0 ? (
         <EmptyState
-          icon={<Users size={24} color="#D44D00" strokeWidth={2} />}
+          icon={<Users size={24} color={colors.accent} strokeWidth={2} />}
           title="Start your first circle"
           body="A circle is the group of families you share rides with. Make one, then send the link to the other parents. If someone already sent you a link, open it and you will land in their circle."
-          action={{ label: 'Start a circle', icon: <Plus size={22} color="#fff" strokeWidth={2.5} />, onPress: () => router.push('/circle/new') }}
+          action={{ label: 'Start a circle', icon: <Plus size={22} color={colors.onAccent} strokeWidth={2.5} />, onPress: () => router.push('/circle/new') }}
         />
       ) : (
         <TodayFeed circleIds={rows.map((r) => r.id)} />

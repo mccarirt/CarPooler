@@ -11,7 +11,7 @@ export default function Circles() {
   const rows = useMemberships();
 
   return (
-    <Screen tab footer={<Button label="Start a circle" icon={<Plus size={22} color="#fff" strokeWidth={2.5} />} onPress={() => router.push('/circle/new')} />}>
+    <Screen tab footer={<Button label="Start a circle" icon={<Plus size={22} color={colors.onAccent} strokeWidth={2.5} />} onPress={() => router.push('/circle/new')} />}>
       <View style={{ height: space.sm }} />
       <Title>Your circles</Title>
       {rows === null ? (

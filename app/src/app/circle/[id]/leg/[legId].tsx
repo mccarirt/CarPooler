@@ -212,7 +212,7 @@ export default function LegEditor() {
         <Card key={i} style={{ gap: space.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
             <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-              <Body style={{ color: '#fff', fontWeight: '800' }}>{i + 1}</Body>
+              <Body style={{ color: colors.onAccent, fontWeight: '800' }}>{i + 1}</Body>
             </View>
             <View style={{ flex: 1 }} />
             <IconBtn label="Move up" disabled={i === 0} onPress={() => moveStop(i, -1)} icon={<ArrowUp size={18} color={colors.ink} />} />

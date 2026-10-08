@@ -10,7 +10,7 @@ import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { guardiansOf, setHousehold } from '@/lib/data';
 import { Avatar, Body, Button, Card, Chip, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
-import { colors, space } from '@/theme';
+import { colors, getThemePreference, setThemePreference, space, ThemePreference } from '@/theme';
 
 // Me: who I am, and the children I am a parent of.
 export default function Me() {
@@ -47,6 +47,16 @@ export default function Me() {
       ) : (
         <Body soft>Children you add to a circle show up here.</Body>
       )}
+
+      <Card style={{ gap: space.sm }}>
+        <Heading>Appearance</Heading>
+        <Small>Dark is easier on the eyes in the evening. The page reloads when you change it.</Small>
+        <Wrap>
+          {([['system', 'Match my phone'], ['light', 'Light'], ['dark', 'Dark']] as [ThemePreference, string][]).map(([key, label]) => (
+            <Chip key={key} label={label} on={getThemePreference() === key} onPress={() => setThemePreference(key)} />
+          ))}
+        </Wrap>
+      </Card>
 
       <Button variant="ghost" label="Something wrong? Copy a report" onPress={() => router.push('/debug')} />
 

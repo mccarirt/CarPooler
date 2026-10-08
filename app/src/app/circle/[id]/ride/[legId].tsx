@@ -483,7 +483,7 @@ export default function RideDay() {
                       </View>
                       {act ? (
                         <Pressable accessibilityRole="button" onPress={() => confirmKid(k, act.to)} style={{ minHeight: 48, minWidth: 120, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={[font.label, { color: '#fff' }]}>{act.label}</Text>
+                          <Text style={[font.label, { color: colors.onInk }]}>{act.label}</Text>
                         </Pressable>
                       ) : (
                         <StatePill state={st} ended={completed} />
@@ -503,7 +503,7 @@ export default function RideDay() {
                 return (
                   <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: done ? 0.5 : 1 }}>
                     <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: here ? colors.accent : done ? colors.ink : colors.sunk }}>
-                      <Text style={{ fontWeight: '800', fontSize: 13, color: here || done ? '#fff' : colors.ink }}>{i + 1}</Text>
+                      <Text style={{ fontWeight: '800', fontSize: 13, color: here ? colors.onAccent : done ? colors.onInk : colors.ink }}>{i + 1}</Text>
                     </View>
                     <Body style={{ flex: 1 }}>{s.label}</Body>
                     <Small>{fmtTime(s.time)}</Small>
@@ -618,7 +618,7 @@ export default function RideDay() {
 
 function Pill({ text, bad }: { text: string; bad?: boolean }) {
   return (
-    <View style={{ backgroundColor: bad ? '#FBE4E2' : colors.okSoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 }}>
+    <View style={{ backgroundColor: bad ? colors.dangerSoft : colors.okSoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 }}>
       <Text style={[font.label, { color: bad ? colors.danger : colors.ok }]}>{text}</Text>
     </View>
   );
@@ -627,7 +627,7 @@ function Pill({ text, bad }: { text: string; bad?: boolean }) {
 function StatePill({ state, ended }: { state: KidState; ended?: boolean }) {
   // After the ride is over, "waiting" would be misleading: say what we do and do not know.
   const map = ended && state !== 'dropped_off'
-    ? { text: state === 'picked_up' ? 'Dropoff not confirmed' : 'Not confirmed', bg: '#FBE9CF', fg: '#8A5300' }
+    ? { text: state === 'picked_up' ? 'Dropoff not confirmed' : 'Not confirmed', bg: colors.warnBg, fg: colors.warnFg }
     : {
     waiting: { text: 'Waiting', bg: colors.sunk, fg: colors.inkSoft },
     picked_up: { text: 'Picked up', bg: colors.accentSoft, fg: colors.accent },
@@ -668,12 +668,12 @@ function SharingBanner() {
   let fg: string = colors.inkSoft;
   if (blocked) {
     text = 'Your phone is not sharing its location, so the family cannot see the car. Allow location for this site in your browser settings, then reopen the app.';
-    bg = '#FBE9CF';
-    fg = '#8A5300';
+    bg = colors.warnBg;
+    fg = colors.warnFg;
   } else if (failed) {
     text = 'Your location could not be sent. Check your connection. The ride still works.';
-    bg = '#FBE9CF';
-    fg = '#8A5300';
+    bg = colors.warnBg;
+    fg = colors.warnFg;
   } else if (sending) {
     text = 'Sharing your location with the family';
     bg = colors.okSoft;

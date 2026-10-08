@@ -86,7 +86,7 @@ type ButtonProps = {
 };
 export function Button({ label, onPress, variant = 'primary', loading, disabled, icon }: ButtonProps) {
   const off = disabled || loading;
-  const fg = variant === 'primary' ? '#FFFFFF' : variant === 'danger' ? colors.danger : colors.ink;
+  const fg = variant === 'primary' ? colors.onAccent : variant === 'danger' ? colors.danger : colors.ink;
   return (
     <Pressable
       accessibilityRole="button"
@@ -119,7 +119,7 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
     <View style={{ gap: space.sm }}>
       <Text style={[s.text, font.label]}>{label}</Text>
       <TextInput
-        placeholderTextColor="#A39787"
+        placeholderTextColor={colors.placeholder}
         {...props}
         style={[s.input, props.multiline && { minHeight: 112, paddingTop: space.md, textAlignVertical: 'top' }]}
       />
@@ -267,8 +267,8 @@ export function Flash({ text, id }: { text: string; id: number }) {
       accessibilityLiveRegion="polite"
       style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }], flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.ink, borderRadius: radius.pill, paddingVertical: 10, paddingHorizontal: space.md }}
     >
-      <Check size={18} color="#fff" strokeWidth={3} />
-      <Text style={[font.label, { color: '#fff' }]}>{text}</Text>
+      <Check size={18} color={colors.onInk} strokeWidth={3} />
+      <Text style={[font.label, { color: colors.onInk }]}>{text}</Text>
     </Animated.View>
   );
 }
@@ -327,7 +327,7 @@ const s = StyleSheet.create({
     borderColor: colors.line,
     padding: space.md,
   },
-  error: { backgroundColor: '#FBE4E2', borderRadius: radius.sm, padding: space.md },
+  error: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: space.md },
 });
 
 export function Chip({ label, on, onPress, small }: { label: string; on: boolean; onPress: () => void; small?: boolean }) {
@@ -346,7 +346,7 @@ export function Chip({ label, on, onPress, small }: { label: string; on: boolean
         borderColor: on ? colors.ink : colors.line,
       }}
     >
-      <Text style={[font.label, { color: on ? '#fff' : colors.ink }]}>{label}</Text>
+      <Text style={[font.label, { color: on ? colors.onInk : colors.ink }]}>{label}</Text>
     </Pressable>
   );
 }
