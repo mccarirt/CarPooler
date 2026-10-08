@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, ChevronRight } from 'lucide-react-native';
 import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
-import { addDays, driverFor, effectiveWindow, fmtTime, isSkipped, prettyDate, runsOn, toISO } from '@/lib/schedule';
-import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast } from '@/lib/data';
+import { addDays, driverFor, effectiveWindow, fmtTime, isSkipped, Override, overrideKey, prettyDate, runsOn, toISO } from '@/lib/schedule';
+import { acceptSwap, cancelSwap, guardiansOf, isOrganizer, requestSwap, runKey, saveOverride, sendBroadcast } from '@/lib/data';
 import { Broadcast, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
-import { Avatar, Body, Card, Heading, Small } from '@/components/ui';
+import { Avatar, Body, Card, Chip, Heading, Small, Wrap } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
 type Item = {
@@ -21,6 +21,15 @@ type Item = {
   driver: string;
   mine: boolean;
   status: 'scheduled' | 'started' | 'completed' | 'skipped';
+  // for changing the driver right from the card
+  rideKey: string;
+  legLabel: string;
+  override?: Override;
+  driverUid: string | null;
+  normalDriverUid: string | null;
+  members: { uid: string; name: string }[];
+  canAssign: boolean; // organizers pick any driver for today
+  canAskSub: boolean; // a non-organizer driver can ask for a sub instead
 };
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
 type SwapRow = { circleId: string; key: string; swap: Swap };
@@ -36,7 +45,7 @@ const RECENT_MS = 12 * 60 * 60 * 1000;
 // everything into a single list across every circle.
 function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string, r: Report) => void }) {
   const { uid } = useSession();
-  const { circle, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
+  const { circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
   const date = toISO(new Date());
   const tomorrow = addDays(date, 1);
 
@@ -51,6 +60,8 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
         const run = runs[runKey(legId, date)];
         const skipped = isSkipped(legId, date, overrides, days);
         const driver = run?.driverUid ?? driverFor(legId, leg, date, rotation, overrides, days);
+        const rideKey = runKey(legId, date);
+        const status = (skipped ? 'skipped' : run?.status ?? 'scheduled') as Item['status'];
         return {
           key: `${circleId}_${legId}`,
           circleId,
@@ -60,7 +71,15 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
           start: effectiveWindow(legId, leg, date, overrides).start,
           driver: driver ? nameOf(driver) : 'No driver yet',
           mine: driver === uid,
-          status: skipped ? 'skipped' : run?.status ?? 'scheduled',
+          status,
+          rideKey,
+          legLabel: label(leg.direction),
+          override: overrides[overrideKey(legId, date)],
+          driverUid: driver ?? null,
+          normalDriverUid: driverFor(legId, leg, date, rotation, { ...overrides, [rideKey]: { ...overrides[rideKey], driverUid: undefined } }, days),
+          members: members.map((m) => ({ uid: m.uid, name: m.name })),
+          canAssign: status === 'scheduled' && isOrganizer(circle, uid),
+          canAskSub: status === 'scheduled' && !isOrganizer(circle, uid) && driver === uid && swaps[rideKey]?.status !== 'open',
         };
       });
 
@@ -114,7 +133,7 @@ function Probe({ circleId, onReport }: { circleId: string; onReport: (id: string
 
     return { items, reminders, swaps: openSwaps, updates, arcs };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [circle, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, date]);
+  }, [circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, uid, date]);
 
   useEffect(() => onReport(circleId, report), [report, circleId, onReport]);
   return null;
@@ -216,25 +235,79 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
         <View style={{ gap: space.sm }}>
           <Heading>Today</Heading>
           {items.map((it) => (
-            <Card
-              key={it.key}
-              onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: it.status === 'skipped' ? 0.5 : 1 }}
-            >
-              <View style={{ width: 72 }}>
-                <Heading>{fmtTime(it.start).replace(' ', ' ')}</Heading>
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Body style={{ fontWeight: '600' }}>{it.title}</Body>
-                <Small>{it.mine ? 'You are driving' : `${it.driver} is driving`}</Small>
-              </View>
-              <StatusDot status={it.status} />
-              {it.status !== 'skipped' && <ChevronRight size={20} color={colors.inkSoft} />}
-            </Card>
+            <TodayCard key={it.key} it={it} />
           ))}
         </View>
       )}
     </>
+  );
+}
+
+function TodayCard({ it }: { it: Item }) {
+  const { uid, profile } = useSession();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // An organizer picks today's driver straight from the card. Choosing the normal driver clears the change.
+  async function assign(driverUid: string) {
+    setBusy(true);
+    try {
+      await saveOverride(it.circleId, it.rideKey, { ...it.override, driverUid: driverUid === it.normalDriverUid ? undefined : driverUid });
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // A driver who is not an organizer cannot pick someone, so they ask the circle for a sub instead.
+  async function askSub() {
+    if (!uid) return;
+    setBusy(true);
+    try {
+      const name = profile?.name ?? 'A parent';
+      await requestSwap(it.circleId, it.rideKey, { legId: it.legId, date: it.date, legLabel: it.legLabel, start: it.start, requesterUid: uid, requesterName: name }, false);
+      await sendBroadcast(it.circleId, { type: 'swap_requested', fromUid: uid, fromName: name, legId: it.legId, legLabel: it.legLabel, date: it.date }).catch(() => {});
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={{ gap: space.xs }}>
+      <Card
+        onPress={it.status === 'skipped' ? undefined : () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`)}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: it.status === 'skipped' ? 0.5 : 1 }}
+      >
+        <View style={{ width: 72 }}>
+          <Heading>{fmtTime(it.start).replace(' ', ' ')}</Heading>
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Body style={{ fontWeight: '600' }}>{it.title}</Body>
+          <Small>{it.mine ? 'You are driving' : `${it.driver} is driving`}</Small>
+        </View>
+        <StatusDot status={it.status} />
+        {it.status !== 'skipped' && <ChevronRight size={20} color={colors.inkSoft} />}
+      </Card>
+      {it.canAssign && (
+        <Pressable accessibilityRole="button" onPress={() => setOpen((o) => !o)} style={{ minHeight: 44, justifyContent: 'center', marginLeft: space.sm }}>
+          <Small style={{ color: colors.accent, fontWeight: '700' }}>{open ? 'Close' : 'Change driver'}</Small>
+        </Pressable>
+      )}
+      {open && (
+        <Card style={{ gap: space.sm }}>
+          <Small>Who drives this one today?</Small>
+          <Wrap>
+            {it.members.map((m) => (
+              <Chip key={m.uid} label={m.name} on={it.driverUid === m.uid} onPress={() => (busy ? undefined : assign(m.uid))} />
+            ))}
+          </Wrap>
+        </Card>
+      )}
+      {it.canAskSub && (
+        <Pressable accessibilityRole="button" onPress={askSub} disabled={busy} style={{ minHeight: 44, justifyContent: 'center', marginLeft: space.sm }}>
+          <Small style={{ color: colors.accent, fontWeight: '700' }}>Need a sub</Small>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
