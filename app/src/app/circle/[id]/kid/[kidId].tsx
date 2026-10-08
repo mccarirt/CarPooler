@@ -5,7 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { addKid, deleteKid, Kid, updateKid } from '@/lib/data';
 import { useSession } from '@/lib/session';
-import { Avatar, Body, Button, Centered, ErrorNote, Field, Gap, Screen, Small, Title } from '@/components/ui';
+import { Avatar, Body, Button, Centered, ErrorNote, Field, Gap, leave, Screen, Small, Title } from '@/components/ui';
 import { colors } from '@/theme';
 
 export default function KidProfile() {
@@ -49,7 +49,7 @@ export default function KidProfile() {
     try {
       if (isNew) await addKid(id, kid, profile);
       else await updateKid(id, kidId, kid);
-      router.back();
+      leave(`/circle/${id}`);
     } catch {
       setError('Could not save. Try again in a moment.');
       setBusy(false);
@@ -60,7 +60,7 @@ export default function KidProfile() {
     setBusy(true);
     try {
       await deleteKid(id, kidId);
-      router.back();
+      leave(`/circle/${id}`);
     } catch {
       setError('Could not remove this profile.');
       setBusy(false);

@@ -6,7 +6,7 @@ import { deleteLeg, saveLeg } from '@/lib/data';
 import { geocode } from '@/lib/geo';
 import { useCircle } from '@/lib/useCircle';
 import { addDays, fmtTime, Leg, parseTime, prettyDate, Stop, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
-import { Body, Button, Card, Centered, Chip, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
+import { Body, Button, Card, Centered, Chip, ErrorNote, Field, Gap, Heading, leave, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 type StopDraft = { label: string; time: string; kidIds: string[]; address: string; lat?: number; lng?: number; found?: string };
@@ -116,7 +116,7 @@ export default function LegEditor() {
     setBusy(true);
     try {
       await saveLeg(id, isNew ? null : legId, leg);
-      router.back();
+      leave(`/circle/${id}`);
     } catch {
       setError('Could not save this ride. Try again in a moment.');
       setBusy(false);
@@ -127,7 +127,7 @@ export default function LegEditor() {
     setBusy(true);
     try {
       await deleteLeg(id, legId);
-      router.back();
+      leave(`/circle/${id}`);
     } catch {
       setError('Could not delete this ride.');
       setBusy(false);

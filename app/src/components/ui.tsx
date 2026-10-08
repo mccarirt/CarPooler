@@ -244,3 +244,10 @@ export function Chip({ label, on, onPress, small }: { label: string; on: boolean
 export function Wrap({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>{children}</View>;
 }
+
+// Go back if there is somewhere to go back to; otherwise land on `fallback`. A deep link or a
+// refreshed page has no history, and a plain router.back() would leave the screen stuck.
+export function leave(fallback: string) {
+  if (router.canGoBack()) router.back();
+  else router.replace(fallback as never);
+}
