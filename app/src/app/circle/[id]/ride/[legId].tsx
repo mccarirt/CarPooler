@@ -6,7 +6,7 @@ import { onValue, ref } from 'firebase/database';
 import { Car, ChevronLeft, Navigation } from 'lucide-react-native';
 import { rtdb } from '@/lib/firebase';
 import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, isOrganizer, livePath, patchRun, publishPosition, logRun, requestSwap, runKey, saveOverride, sendBroadcast, startRun } from '@/lib/data';
-import type { BroadcastType } from '@/lib/social';
+import { newestFirst, type BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
 import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
 import { driverFor, fmtTime, prettyDate, rideLabel, rideTitle, toISO } from '@/lib/schedule';
@@ -201,7 +201,7 @@ export default function RideDay() {
 
   const swap = swaps[key];
   const openSwap = swap?.status === 'open' ? swap : undefined;
-  const rideUpdates = broadcasts.filter((b) => b.legId === legId && b.date === date).slice(0, 5);
+  const rideUpdates = broadcasts.filter((b) => b.legId === legId && b.date === date).sort(newestFirst).slice(0, 1);
 
   async function askForSub() {
     if (!uid) return;
@@ -391,7 +391,7 @@ export default function RideDay() {
             )}
             {rideUpdates.length > 0 && (
               <View style={{ gap: space.sm }}>
-                {rideUpdates.slice(0, 2).map((b, i) => (
+                {rideUpdates.map((b, i) => (
                   <UpdateRow key={`${b.createdAt}_${i}`} b={b} />
                 ))}
               </View>

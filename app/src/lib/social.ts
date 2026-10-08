@@ -71,3 +71,16 @@ export function timeAgo(ms: number, now = Date.now()) {
   if (h < 24) return `${h} hr ago`;
   return `${Math.round(h / 24)} d ago`;
 }
+
+// Within the same moment, a later step of a ride outranks an earlier one ("finished" beats "dropped off").
+const RANK: Record<BroadcastType, number> = {
+  ride_started: 1,
+  arriving: 2,
+  running_late: 2,
+  picked_up: 3,
+  swap_requested: 3,
+  swap_accepted: 3,
+  dropped_off: 4,
+  ride_completed: 5,
+};
+export const newestFirst = (a: Broadcast, b: Broadcast) => b.createdAt - a.createdAt || RANK[b.type] - RANK[a.type];

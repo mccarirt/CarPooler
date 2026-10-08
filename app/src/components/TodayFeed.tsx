@@ -6,7 +6,7 @@ import { useCircle } from '@/lib/useCircle';
 import { useSession } from '@/lib/session';
 import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg, prettyDate, rideLabel, runsOn, toISO } from '@/lib/schedule';
 import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast, startRun } from '@/lib/data';
-import { Broadcast, Swap } from '@/lib/social';
+import { Broadcast, newestFirst, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
 import { initialKids, kidIdsOf, Run } from '@/lib/ride';
 import { Avatar, Body, Button, Card, Heading, Small } from '@/components/ui';
@@ -178,10 +178,14 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
   const reminders = reports.flatMap((r) => r.reminders);
   const arcs = reports.flatMap((r) => r.arcs);
   const swaps = reports.flatMap((r) => r.swaps).sort((a, b) => a.swap.date.localeCompare(b.swap.date));
-  const updates = reports
-    .flatMap((r) => r.updates)
-    .sort((a, b) => b.b.createdAt - a.b.createdAt)
-    .slice(0, 3);
+  // One card per ride: only its most recent status. A single pickup used to produce three messages
+  // (picked up, dropped off, finished); what matters is where the ride stands now.
+  const newestPerRide = new Map<string, UpdateItem>();
+  for (const u of reports.flatMap((r) => r.updates).sort((a, b) => newestFirst(a.b, b.b))) {
+    const key = u.circleId + '_' + u.b.legId + '_' + u.b.date;
+    if (!newestPerRide.has(key)) newestPerRide.set(key, u);
+  }
+  const updates = [...newestPerRide.values()].slice(0, 3);
   const myName = profile?.name ?? 'A parent';
   const nothing = items.length + reminders.length + arcs.length + swaps.length + updates.length === 0;
 
