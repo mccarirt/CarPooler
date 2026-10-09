@@ -38,6 +38,7 @@ export default function LegEditor() {
   const [driverMode, setDriverMode] = useState<'rotation' | 'fixed'>('rotation');
   const [fixedUid, setFixedUid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [finding, setFinding] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -284,7 +285,15 @@ export default function LegEditor() {
       )}
 
       <ErrorNote message={error} />
-      {!isNew && <Button variant="danger" label="Delete this ride" onPress={remove} disabled={busy} />}
+      {!isNew && !confirmDelete && <Button variant="danger" label="Delete this ride" onPress={() => setConfirmDelete(true)} disabled={busy} />}
+      {!isNew && confirmDelete && (
+        <Card style={{ gap: space.sm }}>
+          <Heading>Delete this ride?</Heading>
+          <Small>It disappears from every family's schedule, today and from now on. There is no undo. Records of rides already driven stay, but lose this ride's name.</Small>
+          <Button variant="danger" label="Yes, delete it" onPress={remove} loading={busy} />
+          <Button variant="ghost" label="Never mind" onPress={() => setConfirmDelete(false)} disabled={busy} />
+        </Card>
+      )}
     </Screen>
   );
 }
