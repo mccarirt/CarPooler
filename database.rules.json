@@ -5,7 +5,7 @@
 
     "circleAdmins": {
       "$cid": {
-        ".write": "auth != null && (!data.exists() || data.val() === auth.uid) && newData.val() === auth.uid"
+        ".write": "auth != null && auth.token.email != null && (!data.exists() || data.val() === auth.uid) && newData.val() === auth.uid"
       }
     },
 
@@ -19,7 +19,7 @@
       "$cid": {
         ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists()",
         "$uid": {
-          ".write": "auth != null && $uid === auth.uid && (root.child('circleAdmins').child($cid).val() === auth.uid || root.child('inviteCodes').child(newData.child('code').val()).val() === $cid)",
+          ".write": "auth != null && auth.token.email != null && $uid === auth.uid && (root.child('circleAdmins').child($cid).val() === auth.uid || root.child('inviteCodes').child(newData.child('code').val()).val() === $cid)",
           ".validate": "newData.hasChild('code')"
         }
       }

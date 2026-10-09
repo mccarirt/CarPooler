@@ -8,6 +8,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Does the requester's account have an email on it? Starting or joining a circle needs one, so a
+    // person can always get back in, and someone removed from a circle cannot return as a brand-new nobody.
+    function hasEmail() {
+      return signedIn() && request.auth.token.email != null;
+    }
+
     // Is the requester a member of circle `cid`? Membership = having a doc at
     // circles/{cid}/members/{their uid}. This is the one gate for all circle data.
     function isMember(cid) {
@@ -67,7 +73,7 @@ service cloud.firestore {
     match /invites/{code} {
       allow get: if signedIn();
       allow list: if false;
-      allow create: if signedIn()
+      allow create: if hasEmail()
         && getAfter(/databases/$(database)/documents/circles/$(request.resource.data.circleId)).data.adminUid == request.auth.uid;
       allow update, delete: if false;
     }
@@ -76,7 +82,7 @@ service cloud.firestore {
       // Only members can read the circle. Strangers get nothing.
       allow read: if isMember(cid);
       // Anyone can start a circle, but only as its organizer.
-      allow create: if signedIn() && request.resource.data.adminUid == request.auth.uid;
+      allow create: if hasEmail() && request.resource.data.adminUid == request.auth.uid;
       // Editing the circle:
       //  - The person who started it can change its name, the driving order, and who the
       //    co-organizers are. They can't hand the circle to someone else or change the
@@ -182,7 +188,7 @@ service cloud.firestore {
         // You can only ever add YOURSELF, and only one of two ways:
         //  1) you are the organizer who just created this circle, or
         //  2) you hold a valid invite code for this exact circle.
-        allow create: if signedIn() && request.auth.uid == uid && (
+        allow create: if hasEmail() && request.auth.uid == uid && (
           (request.resource.data.role == 'admin'
             && getAfter(/databases/$(database)/documents/circles/$(cid)).data.adminUid == uid)
           ||

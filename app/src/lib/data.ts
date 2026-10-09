@@ -313,7 +313,11 @@ export type HouseholdDoc = { memberUids: string[]; home?: Place };
 export async function syncHousehold(added: string[], removed: string[]) {
   const uid = await ensureSignedIn();
   const mine = await getDocs(query(collection(db, 'households'), where('memberUids', 'array-contains', uid)));
-  const existing = mine.docs[0];
+  // Only a record made of you and people you listed (or are adding or removing now) is yours. A stranger
+  // can list you in theirs; never copy your home into one of those.
+  const profileHousehold = ((await getDoc(doc(db, 'users', uid))).data() as { household?: string[] } | undefined)?.household ?? [];
+  const allowed = new Set([uid, ...profileHousehold, ...added, ...removed]);
+  const existing = mine.docs.find((d) => (d.data() as HouseholdDoc).memberUids.every((u) => allowed.has(u)));
   const myPlaces = ((await getDoc(doc(db, 'users', uid))).data() as { places?: Place[] } | undefined)?.places ?? [];
   const myHome = myPlaces.find((p) => p.label.trim().toLowerCase() === 'home');
   if (existing) {
