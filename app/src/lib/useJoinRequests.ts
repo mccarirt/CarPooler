@@ -21,6 +21,7 @@ export function usePendingRequests(circleId: string, enabled: boolean) {
 export function useMyRequest(circleId: string | undefined, uid: string | null) {
   const [req, setReq] = useState<JoinRequest | null | undefined>(undefined);
   useEffect(() => {
+    setReq(undefined); // a different person means a different answer: wait for it
     if (!circleId || !uid) return;
     return onSnapshot(
       doc(db, 'circles', circleId, 'requests', uid),

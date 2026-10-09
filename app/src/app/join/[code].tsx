@@ -49,7 +49,7 @@ export default function Join() {
         setInvite(null);
       }
     })();
-  }, [code]);
+  }, [code, uid]); // runs again after signing in as someone else
 
   useEffect(() => {
     if (profile) {
@@ -124,7 +124,9 @@ export default function Join() {
     setError(null);
     try {
       await signInWithEmail(email, password);
-      router.replace('/'); // your circles are already yours; this lands you on Today
+      // Stay on this page: now that we know who you are, it works out whether you are already in, or approved, or waiting.
+      setSigningIn(false);
+      setBusy(false);
     } catch (e) {
       setError(accountError(e));
       setBusy(false);
