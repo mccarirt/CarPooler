@@ -8,6 +8,7 @@ import { useNudgeDismissed } from '@/lib/dismissed';
 import { prettyDate, toISO } from '@/lib/schedule';
 import TodayFeed from '@/components/TodayFeed';
 import JoinRequests from '@/components/JoinRequests';
+import PendingJoinCards from '@/components/PendingJoinCards';
 import { Body, Button, Card, EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
@@ -37,6 +38,7 @@ export default function Today() {
           </View>
         </Card>
       )}
+      <PendingJoinCards />
       {(rows ?? []).map((r) => (
         <JoinRequests key={r.id} circleId={r.id} circleName={r.circleName} />
       ))}

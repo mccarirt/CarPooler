@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ensureSignedIn, getInvite, joinCircle, requestToJoin, saveProfile } from '@/lib/data';
 import { useMyRequest } from '@/lib/useJoinRequests';
+import { addPendingJoin, claimJoin, releaseJoin, removePendingJoin } from '@/lib/pendingJoins';
 import { useSession } from '@/lib/session';
 import { accountError, addEmailToAccount, emailPasswordReset, signInWithEmail, useAccountEmail } from '@/lib/account';
 import EmailFields from '@/components/EmailFields';
@@ -59,14 +60,16 @@ export default function Join() {
 
   // Once the organizer approves, finish joining by ourselves.
   useEffect(() => {
-    if (request?.status !== 'approved' || !invite || finishing.current) return;
+    if (request?.status !== 'approved' || !invite || finishing.current || !claimJoin(invite.circleId)) return;
     finishing.current = true;
     (async () => {
       try {
         const id = await joinCircle(code, { name: request.name, car: request.car, ...(request.color ? { color: request.color } : {}), ...(request.icon ? { icon: request.icon } : {}) });
+        removePendingJoin(invite.circleId);
         router.replace(`/circle/${id}`);
       } catch {
         finishing.current = false;
+        releaseJoin(invite.circleId);
         setError('You were approved, but joining did not finish. Check your connection and open the link again.');
       }
     })();
@@ -95,8 +98,10 @@ export default function Join() {
     try {
       if (!accountEmail) await addEmailToAccount(email, password);
       await saveProfile(name, car);
+      addPendingJoin({ circleId: invite.circleId, code, circleName: invite.circleName }); // so joining finishes by itself, even if this page is closed
       await requestToJoin(invite.circleId, code, { name: name.trim(), car: car.trim(), ...(profile?.color ? { color: profile.color } : {}), ...(profile?.icon ? { icon: profile.icon } : {}) });
     } catch (e) {
+      removePendingJoin(invite.circleId); // the request did not go through, so there is nothing to wait for
       setError((e as { code?: string })?.code ? accountError(e) : 'Could not send your request. Try again in a moment.');
     }
     setBusy(false);
