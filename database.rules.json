@@ -24,7 +24,7 @@
     "liveLegs": {
       "$cid": {
         "$run": {
-          ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists()",
+          ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists() && data.child('ts').val() > now - 7200000",
           ".write": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists() && (((!data.exists() || data.child('driverUid').val() === auth.uid) && (!newData.exists() || newData.child('driverUid').val() === auth.uid)) || ((root.child('circleAdmins').child($cid).val() === auth.uid || root.child('circleOrganizers').child($cid).child(auth.uid).exists()) && !newData.exists()))",
           ".validate": "newData.hasChildren(['driverUid', 'lat', 'lng', 'ts'])",
           "lat": {
@@ -32,6 +32,9 @@
           },
           "lng": {
             ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+          },
+          "ts": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 600000 && newData.val() >= now - 600000"
           }
         }
       }
