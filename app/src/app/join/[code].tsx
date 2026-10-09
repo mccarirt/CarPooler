@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ensureSignedIn, getInvite, joinCircle, saveProfile } from '@/lib/data';
+import { ensureSignedIn, getInvite, joinCircle, requestToJoin, saveProfile } from '@/lib/data';
+import { useMyRequest } from '@/lib/useJoinRequests';
 import { useSession } from '@/lib/session';
 import { accountError, addEmailToAccount, signInWithEmail, useAccountEmail } from '@/lib/account';
 import EmailFields from '@/components/EmailFields';
 import { Body, Button, Centered, ErrorNote, Field, Gap, Heading, Screen, Title } from '@/components/ui';
 import { colors } from '@/theme';
 
+// An invite link does not open the door by itself: it lets you ASK. The person who started the circle
+// approves you, and then you are in. Their approval works once.
 export default function Join() {
   const { code: raw } = useLocalSearchParams<{ code: string }>();
   const code = String(raw ?? '').toUpperCase();
@@ -23,6 +26,8 @@ export default function Join() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [signingIn, setSigningIn] = useState(false);
+  const request = useMyRequest(invite?.circleId, uid);
+  const finishing = useRef(false);
 
   // Sign in quietly so the invite can be looked up, then skip ahead if already a member.
   useEffect(() => {
@@ -51,7 +56,22 @@ export default function Join() {
     }
   }, [profile]);
 
-  if (loading || invite === undefined)
+  // Once the organizer approves, finish joining by ourselves.
+  useEffect(() => {
+    if (request?.status !== 'approved' || !invite || finishing.current) return;
+    finishing.current = true;
+    (async () => {
+      try {
+        const id = await joinCircle(code, { name: request.name, car: request.car, ...(request.color ? { color: request.color } : {}), ...(request.icon ? { icon: request.icon } : {}) });
+        router.replace(`/circle/${id}`);
+      } catch {
+        finishing.current = false;
+        setError('You were approved, but joining did not finish. Check your connection and open the link again.');
+      }
+    })();
+  }, [request, invite, code]);
+
+  if (loading || invite === undefined || request === undefined)
     return (
       <Centered>
         <ActivityIndicator color={colors.accent} />
@@ -67,19 +87,18 @@ export default function Join() {
       </Screen>
     );
 
-  async function join() {
+  async function ask() {
     if (!invite) return;
     setBusy(true);
     setError(null);
     try {
       if (!accountEmail) await addEmailToAccount(email, password);
       await saveProfile(name, car);
-      const id = await joinCircle(code, { name: name.trim(), car: car.trim(), ...(profile?.color ? { color: profile.color } : {}) });
-      router.replace(`/circle/${id}`);
+      await requestToJoin(invite.circleId, code, { name: name.trim(), car: car.trim(), ...(profile?.color ? { color: profile.color } : {}), ...(profile?.icon ? { icon: profile.icon } : {}) });
     } catch (e) {
-      setError((e as { code?: string })?.code ? accountError(e) : e instanceof Error ? e.message : 'Could not join. Try again.');
-      setBusy(false);
+      setError((e as { code?: string })?.code ? accountError(e) : 'Could not send your request. Try again in a moment.');
     }
+    setBusy(false);
   }
 
   async function signIn() {
@@ -93,6 +112,39 @@ export default function Join() {
       setBusy(false);
     }
   }
+
+  if (request?.status === 'pending')
+    return (
+      <Screen>
+        <Heading>Request sent</Heading>
+        <Title>Waiting for the organizer</Title>
+        <Body soft>
+          {invite.circleName} is invite-only, and the person who started it lets people in. You will get in as soon as they approve. Keep this page open, or open the same link again later to finish.
+        </Body>
+        <Button variant="secondary" label="Back to the app" onPress={() => router.replace('/')} />
+      </Screen>
+    );
+
+  if (request?.status === 'approved')
+    return (
+      <Centered>
+        <ActivityIndicator color={colors.accent} />
+        <Gap size="sm" />
+        <Body soft>You are in. Joining {invite.circleName}…</Body>
+        <ErrorNote message={error} />
+      </Centered>
+    );
+
+  if (request?.status === 'declined')
+    return (
+      <Screen>
+        <Title>Not this time</Title>
+        <Body soft>The organizer of {invite.circleName} did not let this request in. If that is a mistake, ask them directly, then ask again.</Body>
+        <ErrorNote message={error} />
+        <Button label="Ask again" onPress={ask} loading={busy} />
+        <Button variant="ghost" label="Back to the app" onPress={() => router.replace('/')} />
+      </Screen>
+    );
 
   if (signingIn)
     return (
@@ -108,10 +160,10 @@ export default function Join() {
 
   const needsEmail = !accountEmail;
   return (
-    <Screen footer={<Button label={`Join ${invite.circleName}`} onPress={join} loading={busy} disabled={!name.trim() || !uid || (needsEmail && (!email.trim() || password.length < 6))} />}>
+    <Screen footer={<Button label={`Ask to join ${invite.circleName}`} onPress={ask} loading={busy} disabled={!name.trim() || !uid || (needsEmail && (!email.trim() || password.length < 6))} />}>
       <Heading>You are invited to</Heading>
       <Title>{invite.circleName}</Title>
-      <Body soft>Add your name so the other parents know who you are{needsEmail ? ', and an email so you can always get back in' : ''}.</Body>
+      <Body soft>Add your name so the other parents know who you are{needsEmail ? ', and an email so you can always get back in' : ''}. The organizer then lets you in.</Body>
       <Gap size="sm" />
       <Field label="Your name" value={name} onChangeText={setName} placeholder="Dana Whitfield" autoCapitalize="words" autoComplete="name" />
       <Field label="Your car (optional)" hint="Kids spot it faster in the pickup line." value={car} onChangeText={setCar} placeholder="Blue Odyssey" />

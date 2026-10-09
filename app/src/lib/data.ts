@@ -100,8 +100,10 @@ export async function joinCircle(code: string, profile: Profile) {
     circleName: invite.circleName,
     role: 'member',
   });
+  batch.delete(doc(db, 'circles', invite.circleId, 'requests', uid)); // the approval is good for one joining only
   await batch.commit();
   await ensureRealtimeAccess(invite.circleId, code, false).catch(() => {});
+  await remove(ref(rtdb, `circleApprovals/${invite.circleId}/${uid}`)).catch(() => {});
   return invite.circleId;
 }
 
@@ -412,8 +414,38 @@ export async function handOverMember(circleId: string, oldUid: string, newUid: s
   const profile = (await getDoc(doc(db, 'users', me))).data() as Profile | undefined;
   if (profile?.household?.includes(oldUid)) await setDoc(doc(db, 'users', me), { household: swap(profile.household) }, { merge: true });
 
-  // Last, remove the old card.
+  // Last, remove the old card, and close every door it held.
+  await deleteDoc(doc(db, 'circles', circleId, 'requests', oldUid)).catch(() => {});
+  await remove(ref(rtdb, `circleApprovals/${circleId}/${oldUid}`)).catch(() => {});
+  await remove(ref(rtdb, `circleMembers/${circleId}/${oldUid}`)).catch(() => {});
   await deleteDoc(doc(db, 'circles', circleId, 'members', oldUid));
   notes.push('old card removed');
   return notes;
+}
+
+// ---------- asking to join ----------
+// An invite link only lets someone ASK to join. The person who started the circle approves or declines.
+export type JoinRequest = { uid: string; name: string; car: string; color?: string; icon?: string; code: string; status: 'pending' | 'approved' | 'declined'; createdAt: number };
+
+export async function requestToJoin(circleId: string, code: string, profile: Profile) {
+  const uid = await ensureSignedIn();
+  await deleteDoc(doc(db, 'circles', circleId, 'requests', uid)).catch(() => {}); // clears an old declined ask
+  const req: JoinRequest = {
+    uid,
+    name: profile.name,
+    car: profile.car,
+    ...(profile.color ? { color: profile.color } : {}),
+    ...(profile.icon ? { icon: profile.icon } : {}),
+    code,
+    status: 'pending',
+    createdAt: Date.now(),
+  };
+  await setDoc(doc(db, 'circles', circleId, 'requests', uid), req);
+}
+
+// The circle's starter decides. An approval is also recorded in the live-location database, which cannot
+// see the main one, so it only lets an approved person in too.
+export async function decideJoin(circleId: string, requestUid: string, approve: boolean) {
+  if (approve) await set(ref(rtdb, `circleApprovals/${circleId}/${requestUid}`), true);
+  await updateDoc(doc(db, 'circles', circleId, 'requests', requestUid), { status: approve ? 'approved' : 'declined' });
 }

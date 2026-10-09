@@ -7,6 +7,7 @@ import { useAccountEmail } from '@/lib/account';
 import { useNudgeDismissed } from '@/lib/dismissed';
 import { prettyDate, toISO } from '@/lib/schedule';
 import TodayFeed from '@/components/TodayFeed';
+import JoinRequests from '@/components/JoinRequests';
 import { Body, Button, Card, EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
@@ -36,6 +37,9 @@ export default function Today() {
           </View>
         </Card>
       )}
+      {(rows ?? []).filter((r) => r.role === 'admin').map((r) => (
+        <JoinRequests key={r.id} circleId={r.id} circleName={r.circleName} isStarter />
+      ))}
       {rows === null ? (
         <SkeletonCard />
       ) : rows.length === 0 ? (

@@ -7,6 +7,7 @@ import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
+import JoinRequests from '@/components/JoinRequests';
 import { Avatar, Body, Button, Card, Centered, Chip, EmptyState, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, space } from '@/theme';
 
@@ -113,6 +114,8 @@ export default function CircleDetail() {
           )}
         </View>
       )}
+
+      <JoinRequests circleId={id} isStarter={circle.adminUid === uid} />
 
       <Card onPress={() => router.push(`/circle/${id}/agenda`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <CalendarDays size={24} color={colors.accent} strokeWidth={2} />
