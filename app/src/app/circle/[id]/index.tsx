@@ -215,7 +215,7 @@ export default function CircleDetail() {
       <Heading>Driving order and fairness</Heading>
       <Card style={{ gap: space.md }}>
         <Small>
-          Each ride you drive counts as one. Drivers take turns in this order{isAdmin ? ' (you can reorder it)' : ''}.
+          {`Each ride you drive counts as one. Drivers take turns in this order${isAdmin ? ' (you can reorder it)' : ''}.`}
         </Small>
         {rotation.map((u, i) => (
           <View key={u} style={{ gap: 6 }}>

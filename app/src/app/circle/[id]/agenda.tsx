@@ -84,7 +84,7 @@ export default function Agenda() {
               )}
               <View style={{ flex: 1 }} />
               {isAdmin && (
-                <Pressable onPress={() => setEditing(editing === dayKey ? null : dayKey)} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
+                <Pressable accessibilityRole="button" accessibilityLabel={day?.skip ? 'Edit this day' : 'Skip this day'} onPress={() => setEditing(editing === dayKey ? null : dayKey)} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
                   <Small style={{ color: colors.accent }}>{day?.skip ? 'Edit' : 'Skip day'}</Small>
                 </Pressable>
               )}

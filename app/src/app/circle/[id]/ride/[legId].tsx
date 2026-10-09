@@ -350,7 +350,7 @@ export default function RideDay() {
         <Map stops={mapStops} route={route?.coords ?? null} car={started && live ? { lat: live.lat, lng: live.lng } : null} routeColor={colorFor(driverUid ?? 'x', driver?.color).fg} carIcon={driver?.icon} />
         {mapStops.length === 0 && (
           <View style={{ position: 'absolute', left: space.md, right: space.md, top: 72, backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md }}>
-            <Small>No map yet: this ride's stops have no addresses. An organizer can add them in the ride's settings.</Small>
+            <Small>{stops.some((x) => x.address && x.lat === undefined) ? "This ride's addresses are saved but could not be placed on the map. An organizer can open the ride and tap Find on map for each stop." : "No map yet: this ride's stops have no addresses. An organizer can add them in the ride's settings."}</Small>
           </View>
         )}
         {flash.id > 0 && (

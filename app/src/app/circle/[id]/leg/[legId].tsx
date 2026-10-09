@@ -39,6 +39,7 @@ export default function LegEditor() {
   const [fixedUid, setFixedUid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [saveWithoutPins, setSaveWithoutPins] = useState(false);
   const [finding, setFinding] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +77,7 @@ export default function LegEditor() {
     );
 
   const patchStop = (i: number, p: Partial<StopDraft>) => {
+    if (p.address !== undefined) setSaveWithoutPins(false); // a changed address gets a fresh try at being placed
     setTouched(true);
     setStops((s) => s.map((x, j) => (j === i ? { ...x, ...p } : x)));
   };
@@ -123,6 +125,31 @@ export default function LegEditor() {
     }
     if (cleanStops.length < 2) return setError('A ride needs two stops: where the child is picked up and where they are going. Add the home stop.');
     if (driverMode === 'fixed' && !fixedUid) return setError('Choose which parent always drives this ride.');
+
+    // An address that was typed but never placed on the map would leave the ride with no map. Place any such
+    // address now (one lookup a second, as the free service asks). If one cannot be placed, say which, and let
+    // the person fix it or tap Save again to save without a map pin for it.
+    setBusy(true);
+    const unplaced: string[] = [];
+    for (const st of cleanStops) {
+      if (st.address && st.lat === undefined) {
+        try {
+          const hit = await geocode(st.address);
+          if (hit) {
+            st.lat = hit.lat;
+            st.lng = hit.lng;
+          } else unplaced.push(st.label);
+        } catch {
+          unplaced.push(st.label);
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+    if (unplaced.length > 0 && !saveWithoutPins) {
+      setSaveWithoutPins(true);
+      setBusy(false);
+      return setError(`We could not place ${unplaced.join(', ')} on the map. Add the city and state to the address, or tap Save again to save without a map pin there.`);
+    }
 
     const existing = isNew ? null : legs[legId];
     const leg: Leg = {
@@ -226,7 +253,7 @@ export default function LegEditor() {
             label="Street address (for the map)"
             value={s.address}
             onChangeText={(v) => patchStop(i, { address: v, lat: undefined, lng: undefined, found: undefined })}
-            placeholder="123 Maple St, Springfield"
+            placeholder="123 Maple St, Charlotte NC"
             hint={s.found ? s.found : 'Optional. Without it, this stop shows up in the list but not on the map.'}
           />
           {s.address.trim() && s.lat === undefined && (
@@ -281,7 +308,7 @@ export default function LegEditor() {
           ))}
         </Wrap>
       ) : (
-        <Small>Parents rotate in the circle's driving order: {rotation.length} in the rotation now.</Small>
+        <Small>{`Parents rotate in the circle's driving order: ${rotation.length} in the rotation now.`}</Small>
       )}
 
       <ErrorNote message={error} />

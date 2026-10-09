@@ -48,7 +48,7 @@ const RECENT_MS = 12 * 60 * 60 * 1000;
 // always describe today.
 function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[]; onReport: (id: string, r: Report) => void }) {
   const { uid } = useSession();
-  const { circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf } = useCircle(circleId);
+  const { circle, members, kids, legs, overrides, days, runs, swaps, broadcasts, rotation, nameOf, ready } = useCircle(circleId);
   const today = toISO(new Date());
   const tomorrow = addDays(today, 1);
   const datesKey = dates.join(',');
@@ -163,8 +163,8 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
 
   // Report only once the circle's data has arrived, so the screen never claims "nothing today" while it is still loading.
   useEffect(() => {
-    if (circle) onReport(circleId, report);
-  }, [report, circle, circleId, onReport]);
+    if (circle && ready) onReport(circleId, report);
+  }, [report, circle, ready, circleId, onReport]);
   return null;
 }
 

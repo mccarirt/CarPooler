@@ -109,7 +109,7 @@ export function SwapCard({
       </View>
       <Body>
         {showRide ? `${swap.legLabel} · ` : ''}
-        {prettyDate(swap.date)}, {fmtTime(swap.start)}
+        {`${prettyDate(swap.date)}, ${fmtTime(swap.start)}`}
       </Body>
       {error && <Small style={{ color: colors.danger }}>{error}</Small>}
       {mine ? (
