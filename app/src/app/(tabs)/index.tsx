@@ -9,6 +9,7 @@ import { prettyDate, toISO } from '@/lib/schedule';
 import TodayFeed from '@/components/TodayFeed';
 import JoinRequests from '@/components/JoinRequests';
 import PendingJoinCards from '@/components/PendingJoinCards';
+import ShareControl, { CircleShares } from '@/components/ShareControl';
 import { Body, Button, Card, EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
@@ -38,6 +39,10 @@ export default function Today() {
           </View>
         </Card>
       )}
+      {rows && rows.length > 0 && <ShareControl circles={rows.map((r) => ({ id: r.id, name: r.circleName }))} />}
+      {(rows ?? []).map((r) => (
+        <CircleShares key={r.id} circleId={r.id} circleName={r.circleName} />
+      ))}
       <PendingJoinCards />
       {(rows ?? []).map((r) => (
         <JoinRequests key={r.id} circleId={r.id} circleName={r.circleName} />

@@ -201,6 +201,20 @@ service cloud.firestore {
         allow delete: if signedIn() && (request.auth.uid == uid || isOrganizer(cid));
       }
 
+      // Sharing your location with the circle: a small record saying who is sharing, a short note, and when it
+      // ends. Any member can see them. You can only start, change or stop YOUR OWN, and it can never run for
+      // more than two hours (five minutes of slack for a phone clock that is a little off).
+      match /shares/{uid} {
+        allow read: if isMember(cid);
+        allow create, update: if isMember(cid) && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'color', 'icon', 'note', 'startedAt', 'expiresAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.expiresAt is number
+          && request.resource.data.expiresAt <= request.time.toMillis() + 7500000
+          && (!('note' in request.resource.data) || request.resource.data.note.size() <= 80);
+        allow delete: if isMember(cid) && request.auth.uid == uid;
+      }
+
       match /members/{uid} {
         allow read: if isMember(cid);
 

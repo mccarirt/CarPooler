@@ -9,6 +9,7 @@ import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
 import JoinRequests from '@/components/JoinRequests';
+import ShareControl, { CircleShares } from '@/components/ShareControl';
 import { Avatar, Body, Button, Card, Centered, Chip, EmptyState, ErrorNote, Field, Gap, Heading, Screen, Small, Title, Wrap } from '@/components/ui';
 import { colors, space } from '@/theme';
 
@@ -135,6 +136,9 @@ export default function CircleDetail() {
       )}
 
       <JoinRequests circleId={id} />
+
+      <CircleShares circleId={id} circleName={circle.name} />
+      <ShareControl circles={[{ id, name: circle.name }]} />
 
       <Card onPress={() => router.push(`/circle/${id}/agenda`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <CalendarDays size={24} color={colors.accent} strokeWidth={2} />

@@ -471,3 +471,32 @@ export async function reassignDriver(circleId: string, key: string, newDriverUid
   await updateDoc(doc(db, 'circles', circleId, 'runs', key), { driverUid: newDriverUid });
   await remove(ref(rtdb, livePath(circleId, key))).catch(() => {});
 }
+
+// ---------- sharing your location with a circle ----------
+// Opt-in and time-boxed: you pick a circle and how long (at most two hours). A small record in the circle says
+// who is sharing and until when, so everyone else can find it; the position itself goes in the live-location
+// database under share_<your id>. Stopping, or running out of time, deletes both.
+export type ShareDoc = { uid: string; name: string; color?: string; icon?: string; note?: string; startedAt: number; expiresAt: number };
+export const shareKey = (uid: string) => `share_${uid}`;
+export const MAX_SHARE_MINUTES = 120;
+
+export async function startShare(circleId: string, profile: Profile, note: string, minutes: number) {
+  const uid = await ensureSignedIn();
+  const now = Date.now();
+  const share: ShareDoc = {
+    uid,
+    name: profile.name,
+    ...(profile.color ? { color: profile.color } : {}),
+    ...(profile.icon ? { icon: profile.icon } : {}),
+    ...(note.trim() ? { note: note.trim().slice(0, 80) } : {}),
+    startedAt: now,
+    expiresAt: now + Math.min(minutes, MAX_SHARE_MINUTES) * 60000,
+  };
+  await setDoc(doc(db, 'circles', circleId, 'shares', uid), share);
+}
+
+export async function stopShare(circleId: string) {
+  const uid = await ensureSignedIn();
+  await clearPosition(circleId, shareKey(uid));
+  await deleteDoc(doc(db, 'circles', circleId, 'shares', uid));
+}

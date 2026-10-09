@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ensureRealtimeAccess, publishPosition } from '@/lib/data';
+import { ensureRealtimeAccess, publishPosition, shareKey, stopShare } from '@/lib/data';
+import type { ShareDoc } from '@/lib/data';
 import { gpsDebug } from '@/lib/gpsDebug';
 import type { Run } from '@/lib/ride';
 import { useMemberships } from '@/lib/useMemberships';
@@ -18,6 +19,7 @@ export default function LocationSharer() {
   const { uid } = useSession();
   const rows = useMemberships();
   const [active, setActive] = useState<Record<string, Active>>({});
+  const [sharing, setSharing] = useState<Record<string, Active>>({}); // my opt-in shares, by circle
 
   // Which of my rides are in progress right now?
   const circleIds = rows?.map((r) => r.id).join(',') ?? '';
@@ -41,7 +43,39 @@ export default function LocationSharer() {
     return () => offs.forEach((o) => o());
   }, [uid, circleIds]);
 
-  const list = Object.values(active);
+  // Am I sharing my location with any circle (opt-in, time-boxed)? Each share stops itself when its time is up.
+  useEffect(() => {
+    if (!uid || !circleIds) return;
+    const timers: Record<string, ReturnType<typeof setTimeout>> = {};
+    const offs = circleIds.split(',').map((circleId) =>
+      onSnapshot(
+        doc(db, 'circles', circleId, 'shares', uid),
+        (snap) => {
+          clearTimeout(timers[circleId]);
+          const share = snap.exists() ? (snap.data() as ShareDoc) : null;
+          if (share && share.expiresAt > Date.now()) {
+            setSharing((a) => ({ ...a, [circleId]: { circleId, key: shareKey(uid) } }));
+            timers[circleId] = setTimeout(() => stopShare(circleId).catch(() => {}), share.expiresAt - Date.now());
+          } else {
+            setSharing((a) => {
+              if (!a[circleId]) return a;
+              const next = { ...a };
+              delete next[circleId];
+              return next;
+            });
+            if (share) stopShare(circleId).catch(() => {}); // an old, expired share: clean it up
+          }
+        },
+        () => {},
+      ),
+    );
+    return () => {
+      offs.forEach((o) => o());
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, [uid, circleIds]);
+
+  const list = [...Object.values(active), ...Object.values(sharing)];
   const signature = list.map((x) => x.circleId + '/' + x.key).join('|');
   const latest = useRef<Active[]>([]);
   latest.current = list;
