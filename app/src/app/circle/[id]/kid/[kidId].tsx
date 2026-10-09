@@ -111,7 +111,7 @@ export default function KidProfile() {
       </View>
       <Field
         label="Notes for drivers"
-        hint="Booster seat, allergies, where they wait for pickup."
+        hint="Booster seat, where they wait for pickup. Every family in this circle can read this, so keep medical details out."
         value={notes}
         onChangeText={setNotes}
         placeholder="Booster seat. Waits by the library door."
@@ -135,7 +135,10 @@ export default function KidProfile() {
           </Wrap>
         </View>
       )}
-      <Body>Emergency contact</Body>
+      <View style={{ gap: 4 }}>
+        <Body style={{ fontWeight: '600' }}>Emergency contact</Body>
+        <Small>A driver may need to reach someone. Every family in this circle can see this name and number.</Small>
+      </View>
       <Field label="Contact name" value={emergencyName} onChangeText={setEmergencyName} placeholder="Sam Whitfield" autoCapitalize="words" />
       <Field label="Contact phone" value={emergencyPhone} onChangeText={setEmergencyPhone} placeholder="555 010 0142" keyboardType="phone-pad" />
       <ErrorNote message={error} />
