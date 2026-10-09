@@ -6,9 +6,9 @@ import { db } from '@/lib/firebase';
 import { ensureSignedIn, getInvite, joinCircle, requestToJoin, saveProfile } from '@/lib/data';
 import { useMyRequest } from '@/lib/useJoinRequests';
 import { useSession } from '@/lib/session';
-import { accountError, addEmailToAccount, signInWithEmail, useAccountEmail } from '@/lib/account';
+import { accountError, addEmailToAccount, emailPasswordReset, signInWithEmail, useAccountEmail } from '@/lib/account';
 import EmailFields from '@/components/EmailFields';
-import { Body, Button, Centered, ErrorNote, Field, Gap, Heading, Screen, Title } from '@/components/ui';
+import { Body, Button, Centered, ErrorNote, Field, Gap, Heading, Screen, Small, Title } from '@/components/ui';
 import { colors } from '@/theme';
 
 // An invite link does not open the door by itself: it lets you ASK. The person who started the circle
@@ -26,6 +26,7 @@ export default function Join() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [signingIn, setSigningIn] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const request = useMyRequest(invite?.circleId, uid);
   const finishing = useRef(false);
 
@@ -101,6 +102,18 @@ export default function Join() {
     setBusy(false);
   }
 
+  async function forgot() {
+    setError(null);
+    setNote(null);
+    if (!email.trim()) return setError('Type your email above first, then tap this again.');
+    try {
+      await emailPasswordReset(email);
+      setNote('Check your email for a link to choose a new password.');
+    } catch (e) {
+      setError(accountError(e));
+    }
+  }
+
   async function signIn() {
     setBusy(true);
     setError(null);
@@ -154,7 +167,9 @@ export default function Join() {
         <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" autoCorrect={false} placeholder="you@example.com" />
         <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoComplete="current-password" autoCorrect={false} />
         <ErrorNote message={error} />
-        <Button variant="ghost" label="I am new here" onPress={() => { setSigningIn(false); setError(null); }} />
+        {note && <Small style={{ color: colors.ok, fontWeight: '600' }}>{note}</Small>}
+        <Button variant="ghost" label="Forgot my password" onPress={forgot} />
+        <Button variant="ghost" label="I am new here" onPress={() => { setSigningIn(false); setError(null); setNote(null); }} />
       </Screen>
     );
 
