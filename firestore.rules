@@ -213,7 +213,10 @@ service cloud.firestore {
           ||
           (request.resource.data.role == 'member'
             && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.circleId == cid
-            && get(/databases/$(database)/documents/circles/$(cid)/requests/$(uid)).data.status == 'approved')
+            && get(/databases/$(database)/documents/circles/$(cid)/requests/$(uid)).data.status == 'approved'
+            // The approval must be used up in the same save (existsAfter looks at the data as it will be once this
+            // save finishes), so a person who is later removed cannot use the old approval to walk back in.
+            && !existsAfter(/databases/$(database)/documents/circles/$(cid)/requests/$(uid)))
         );
 
         // You can change your own name, car, avatar color and map icon, nothing else (not your role).

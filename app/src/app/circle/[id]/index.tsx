@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Pencil, Plus } from 'lucide-react-native';
-import { archiveCircle, guardiansOf, handOverMember, syncOrganizerMirror, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
+import { archiveCircle, ensureRealtimeAccess, guardiansOf, handOverMember, syncOrganizerMirror, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
 import { kidIdsOf } from '@/lib/ride';
 import { displayName } from '@/lib/names';
 import { useSession } from '@/lib/session';
@@ -27,9 +27,13 @@ export default function CircleDetail() {
 
   // The starter's phone keeps the live-location database's list of organizers up to date.
   const organizerKey = (circle?.coOrganizerUids ?? []).join(',');
+  // It also re-claims the circle's own entry there (harmless if already set), so nobody else can claim it first.
   useEffect(() => {
-    if (circle && circle.adminUid === uid && organizerKey) syncOrganizerMirror(id, organizerKey.split(','));
-  }, [circle?.adminUid, uid, organizerKey, id]);
+    if (!circle || circle.adminUid !== uid) return;
+    ensureRealtimeAccess(id, circle.inviteCode, true)
+      .then(() => (organizerKey ? syncOrganizerMirror(id, organizerKey.split(',')) : undefined))
+      .catch(() => {});
+  }, [circle?.adminUid, circle?.inviteCode, uid, organizerKey, id]);
 
   if (circle === undefined)
     return (

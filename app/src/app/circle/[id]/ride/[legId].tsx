@@ -227,6 +227,17 @@ export default function RideDay() {
     heroSub = `Next stop: ${nextStop.label} (planned)`;
   }
 
+  // ---- how fresh is the car's position? ----
+  // A marker that stopped moving should not look live. Say how old it is, or that there is none yet.
+  let locationNote: string | null = null;
+  if (started && !run?.simulated && !run?.arrived) {
+    if (!live) locationNote = "Waiting for the driver's location. Their phone may be offline or have location turned off.";
+    else {
+      const age = Math.max(0, Math.round((Date.now() - live.ts) / 1000));
+      if (age > 60) locationNote = `Last location ${age < 120 ? age + ' seconds' : Math.round(age / 60) + ' minutes'} ago. The car may have lost signal, so this may not be where it is now.`;
+    }
+  }
+
   // ---- actions ----
   const kidName = (k: string) => kids.find((x) => x.id === k)?.name ?? 'Child';
   const actions = run ? kidActions(leg.direction, stops, run) : {};
@@ -439,6 +450,7 @@ export default function RideDay() {
                 </Small>
                 <Text style={[font.display, { fontSize: 48, lineHeight: 54, color: colors.ink }]}>{hero}</Text>
                 <Body soft>{heroSub}</Body>
+                {locationNote && <Small style={{ color: colors.warnFg, fontWeight: '600' }}>{locationNote}</Small>}
               </View>
               {run?.simulated && !completed ? <Pill text="Demo driver" /> : late ? <Pill text={late.text} bad={late.bad} /> : null}
             </View>
