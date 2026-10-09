@@ -2,6 +2,7 @@ import { ReactNode, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 import { ArrowLeftRight, Check, ChevronRight, Clock, Flag, MapPin, Play, UserCheck, X } from 'lucide-react-native';
 import { Broadcast, broadcastText, Swap, timeAgo } from '@/lib/social';
+import { displayName } from '@/lib/names';
 import { fmtTime, prettyDate } from '@/lib/schedule';
 import { Body, Button, Small } from '@/components/ui';
 import { colors, font, radius, space } from '@/theme';
@@ -19,7 +20,7 @@ const ICONS: Record<Broadcast['type'], { icon: (c: string) => ReactNode; bg: str
 
 // A persistent in-app status line. Nothing important lives only in a push notification (brief §8).
 // With onDismiss it can be swiped away (either direction) or cleared with the X.
-export function UpdateRow({ b, showRide, onPress, onDismiss }: { b: Broadcast; showRide?: boolean; onPress?: () => void; onDismiss?: () => void }) {
+export function UpdateRow({ b, showRide, onPress, onDismiss, names }: { b: Broadcast; showRide?: boolean; onPress?: () => void; onDismiss?: () => void; names?: string[] }) {
   const s = ICONS[b.type];
   const x = useRef(new Animated.Value(0)).current;
   const dragged = useRef(false); // a swipe must never also count as a tap on the card
@@ -49,7 +50,7 @@ export function UpdateRow({ b, showRide, onPress, onDismiss }: { b: Broadcast; s
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md }}>
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: s.bg, alignItems: 'center', justifyContent: 'center' }}>{s.icon(s.fg)}</View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Body style={{ fontWeight: '600' }}>{broadcastText(b)}</Body>
+        <Body style={{ fontWeight: '600' }}>{broadcastText(b, names)}</Body>
         <Small>
           {showRide ? b.legLabel + ' · ' : ''}
           {timeAgo(b.createdAt)}
@@ -85,9 +86,9 @@ export function UpdateRow({ b, showRide, onPress, onDismiss }: { b: Broadcast; s
 }
 
 export function SwapCard({
-  swap, mine, onAccept, onCancel, showRide = true,
+  swap, mine, onAccept, onCancel, showRide = true, names,
 }: {
-  swap: Swap; mine: boolean; onAccept: () => Promise<void>; onCancel: () => Promise<void>; showRide?: boolean;
+  swap: Swap; mine: boolean; onAccept: () => Promise<void>; onCancel: () => Promise<void>; showRide?: boolean; names?: string[];
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +106,7 @@ export function SwapCard({
     <View style={{ backgroundColor: colors.warnCard, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warnLine, padding: space.md, gap: space.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
         <ArrowLeftRight size={20} color={colors.warnFg} strokeWidth={2.25} />
-        <Text style={[font.heading, { color: colors.ink, flex: 1 }]}>{mine ? 'You asked for a sub' : `${swap.requesterName.split(' ')[0]} needs a sub`}</Text>
+        <Text style={[font.heading, { color: colors.ink, flex: 1 }]}>{mine ? 'You asked for a sub' : `${names ? displayName(swap.requesterName, names) : swap.requesterName.split(' ')[0]} needs a sub`}</Text>
       </View>
       <Body>
         {showRide ? `${swap.legLabel} · ` : ''}

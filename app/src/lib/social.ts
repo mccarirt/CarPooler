@@ -1,3 +1,4 @@
+import { displayName } from './names';
 // Structured one-tap messages ("broadcasts") and swap requests. Pure types + text helpers.
 // Deliberately not chat: every message is one of a fixed set of kinds (brief §5i).
 
@@ -40,8 +41,8 @@ export type Swap = {
 
 const first = (name: string) => name.split(' ')[0];
 
-export function broadcastText(b: Broadcast) {
-  const who = first(b.fromName);
+export function broadcastText(b: Broadcast, names?: string[]) {
+  const who = names ? displayName(b.fromName, names) : first(b.fromName);
   switch (b.type) {
     case 'running_late':
       return `${who} is running ${b.minutes ?? 10} min late`;

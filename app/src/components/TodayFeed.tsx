@@ -8,6 +8,7 @@ import { addDays, dirLabel, driverFor, effectiveWindow, fmtTime, isSkipped, Leg,
 import { acceptSwap, cancelSwap, guardiansOf, runKey, sendBroadcast, startRun } from '@/lib/data';
 import { Broadcast, newestFirst, Swap } from '@/lib/social';
 import { SwapCard, UpdateRow } from '@/components/social';
+import { displayName } from '@/lib/names';
 import { useDismissed } from '@/lib/dismissed';
 import { initialKids, kidIdsOf } from '@/lib/ride';
 import { Avatar, Body, Button, Card, EmptyState, FadeIn, Heading, SkeletonCard, Small } from '@/components/ui';
@@ -28,15 +29,16 @@ type Item = {
   legLabel: string;
   driverId: string | null;
   driverName: string;
+  driverShort: string;
   driverColor?: string;
-  kidsOn: { id: string; name: string; color?: string }[];
+  kidsOn: { id: string; name: string; short: string; color?: string }[];
   kidIds: string[];
 };
 type Reminder = { key: string; circleId: string; legId: string; date: string; title: string; start: string };
-type SwapRow = { circleId: string; key: string; swap: Swap };
-type UpdateItem = { circleId: string; circleName: string; b: Broadcast };
+type SwapRow = { circleId: string; key: string; swap: Swap; names: string[] };
+type UpdateItem = { circleId: string; circleName: string; b: Broadcast; names: string[] };
 type Trip = { legId: string; start: string; title: string; dir: string; state: 'upcoming' | 'live' | 'done' | 'problem'; text: string };
-type KidDay = { key: string; kidId: string; kidColor?: string; circleId: string; date: string; kidName: string; headline: string; trips: Trip[] };
+type KidDay = { key: string; kidId: string; kidColor?: string; circleId: string; date: string; kidName: string; kidShort: string; headline: string; trips: Trip[] };
 type Report = { items: Item[]; reminders: Reminder[]; swaps: SwapRow[]; updates: UpdateItem[]; arcs: KidDay[] };
 
 const EMPTY: Report = { items: [], reminders: [], swaps: [], updates: [], arcs: [] };
@@ -56,6 +58,8 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
   const report = useMemo((): Report => {
     if (!circle) return EMPTY;
     const label = (leg: Leg) => rideLabel(circle.name, leg);
+    const parentNames = members.map((m) => m.name); // short names add a last initial only when two share a first name
+    const childNames = kids.map((k) => k.name);
     const entries = Object.entries(legs);
 
     const items = dates.flatMap((date) =>
@@ -81,11 +85,12 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
             legLabel: label(leg),
             driverId: driver ?? null,
             driverName: driver ? nameOf(driver) : 'No driver yet',
+            driverShort: driver ? displayName(nameOf(driver), parentNames) : 'No driver yet',
             driverColor: members.find((m) => m.uid === driver)?.color,
             kidIds: kidIdsOf(leg.stops),
             kidsOn: kidIdsOf(leg.stops).flatMap((kid) => {
               const k = kids.find((x) => x.id === kid);
-              return k ? [{ id: k.id, name: k.name, color: k.color }] : [];
+              return k ? [{ id: k.id, name: k.name, short: displayName(k.name, childNames), color: k.color }] : [];
             }),
           };
         }),
@@ -109,12 +114,12 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
 
     const openSwaps = Object.entries(swaps)
       .filter(([, s]) => s.status === 'open' && s.date >= today)
-      .map(([key, swap]) => ({ circleId, key, swap }));
+      .map(([key, swap]) => ({ circleId, key, swap, names: parentNames }));
 
     const now = Date.now();
     const updates = broadcasts
       .filter((b) => now - b.createdAt < RECENT_MS && b.fromUid !== uid && b.type !== 'swap_requested')
-      .map((b) => ({ circleId, circleName: circle.name, b }));
+      .map((b) => ({ circleId, circleName: circle.name, b, names: parentNames }));
 
     // Each of my children's day: every ride they are on today, in time order, each with its own status.
     // A child can have any number of trips (school, practice, a club), so this is a list, not a fixed path.
@@ -154,7 +159,7 @@ function Probe({ circleId, dates, onReport }: { circleId: string; dates: string[
             : trips.length > 1
               ? 'All done today'
               : trips[0].text;
-      arcs.push({ key: `${circleId}_${kid.id}`, kidId: kid.id, kidColor: kid.color, circleId, date: today, kidName: kid.name, headline, trips });
+      arcs.push({ key: `${circleId}_${kid.id}`, kidId: kid.id, kidColor: kid.color, circleId, date: today, kidName: kid.name, kidShort: displayName(kid.name, childNames), headline, trips });
     }
 
     return { items, reminders, swaps: openSwaps, updates, arcs };
@@ -232,7 +237,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
       {swaps.length > 0 && uid && (
         <View style={{ gap: space.sm }}>
           <Heading>Needs a driver</Heading>
-          {swaps.map(({ circleId, key, swap }) => (
+          {swaps.map(({ circleId, key, swap, names }) => (
             <SwapCard
               key={`${circleId}_${key}`}
               swap={swap}
@@ -268,7 +273,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
         <View style={{ gap: space.sm }}>
           <Heading>Latest updates</Heading>
           {updates.map((u, i) => (
-            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} showRide onPress={() => router.push("/circle/" + u.circleId + "/ride/" + u.b.legId + "?date=" + u.b.date)} onDismiss={() => dismiss(updateKey(u))} />
+            <UpdateRow key={`${u.b.createdAt}_${i}`} b={u.b} names={u.names} showRide onPress={() => router.push("/circle/" + u.circleId + "/ride/" + u.b.legId + "?date=" + u.b.date)} onDismiss={() => dismiss(updateKey(u))} />
           ))}
         </View>
       )}
@@ -282,7 +287,7 @@ export default function TodayFeed({ circleIds }: { circleIds: string[] }) {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
                 <Avatar name={a.kidName} size={44} id={a.kidId} colorKey={a.kidColor} />
                 <View style={{ flex: 1 }}>
-                  <Body style={{ fontWeight: '700' }}>{a.kidName.split(' ')[0]}</Body>
+                  <Body style={{ fontWeight: '700' }}>{a.kidShort}</Body>
                   <Small>{a.headline}</Small>
                 </View>
               </View>
@@ -375,8 +380,8 @@ function RideCard({ it, showCircle }: { it: Item; showCircle: boolean }) {
   const { uid, profile } = useSession();
   const [busy, setBusy] = useState(false);
   const [, tick] = useState(0);
-  const kidNames = it.kidsOn.map((k) => k.name.split(' ')[0]).join(', ');
-  const driver = it.mine ? 'You drive' : `${it.driverName.split(' ')[0]} drives`;
+  const kidNames = it.kidsOn.map((k) => k.short).join(', ');
+  const driver = it.mine ? 'You drive' : `${it.driverShort} drives`;
   const open = () => router.push(`/circle/${it.circleId}/ride/${it.legId}?date=${it.date}`);
 
   // The Start button appears on its own as the ride's time approaches, so check the clock every minute.

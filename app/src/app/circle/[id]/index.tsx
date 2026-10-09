@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Pencil, Plus } from 'lucide-react-native';
 import { archiveCircle, guardiansOf, handOverMember, syncOrganizerMirror, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
 import { kidIdsOf } from '@/lib/ride';
+import { displayName } from '@/lib/names';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
 import { fairness, fmtTime, rideTitle, toISO, WEEKDAY_SHORT } from '@/lib/schedule';
@@ -179,12 +180,12 @@ export default function CircleDetail() {
                     </View>
                   ))}
                   {riders.length > 0 && (
-                    <Small style={{ marginLeft: space.sm, flexShrink: 1 }}>{riders.map((k) => k.name.split(' ')[0]).join(', ')}</Small>
+                    <Small style={{ marginLeft: space.sm, flexShrink: 1 }}>{riders.map((k) => displayName(k.name, kids.map((x) => x.name))).join(', ')}</Small>
                   )}
                 </View>
                 {fixed ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-                    <Small style={{ color: colors.ink, fontWeight: '600' }}>Always {fixed.name.split(' ')[0]}</Small>
+                    <Small style={{ color: colors.ink, fontWeight: '600' }}>Always {displayName(fixed.name, members.map((x) => x.name))}</Small>
                     <Avatar name={fixed.name} size={32} id={fixed.uid} colorKey={fixed.color} />
                   </View>
                 ) : (

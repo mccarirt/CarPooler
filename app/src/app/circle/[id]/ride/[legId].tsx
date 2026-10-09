@@ -17,6 +17,7 @@ import { useCircle } from '@/lib/useCircle';
 import Map from '@/components/Map';
 import { Avatar, Body, Button, Card, Centered, Chip, Flash, Heading, Small, Wrap } from '@/components/ui';
 import { SwapCard, UpdateRow } from '@/components/social';
+import { displayName } from '@/lib/names';
 import { colors, font, radius, space } from '@/theme';
 
 const SIM_SPEEDUP = 8; // demo driver moves 8x real speed so a leg takes a minute or two
@@ -289,7 +290,7 @@ export default function RideDay() {
       await patchRun(id, key, patch);
       {
         const verb = (to: KidState) => (to === 'picked_up' ? 'picked up' : to === 'absent' ? 'marked absent' : 'dropped off');
-        const names = Object.keys(updates).map((k) => kidName(k).split(' ')[0]);
+        const names = Object.keys(updates).map((k) => displayName(kidName(k), kids.map((x) => x.name)));
         setFlash((f) => ({ text: names.join(' and ') + ' ' + verb(Object.values(updates)[0]), id: f.id + 1 }));
       }
       for (const [k, to] of Object.entries(updates)) await announce(to === 'picked_up' ? 'picked_up' : 'dropped_off', { kidName: kidName(k) });
@@ -341,7 +342,7 @@ export default function RideDay() {
       ? [{ lat: s.lat, lng: s.lng, n: i + 1, label: s.label, done: completed || (started && i < stopIndex), current: started && i === stopIndex }]
       : [],
   );
-  const driverFirst = (driver?.name ?? 'The driver').split(' ')[0];
+  const driverFirst = driver ? displayName(driver.name, members.map((m) => m.name)) : 'The driver';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -409,12 +410,12 @@ export default function RideDay() {
             </View>
 
             {openSwap && !completed && !started && uid && (
-              <SwapCard swap={openSwap} mine={openSwap.requesterUid === uid} onAccept={takeSwap} onCancel={() => cancelSwap(id, key)} showRide={false} />
+              <SwapCard swap={openSwap} names={members.map((m) => m.name)} mine={openSwap.requesterUid === uid} onAccept={takeSwap} onCancel={() => cancelSwap(id, key)} showRide={false} />
             )}
             {rideUpdates.length > 0 && (
               <View style={{ gap: space.sm }}>
                 {rideUpdates.map((b, i) => (
-                  <UpdateRow key={`${b.createdAt}_${i}`} b={b} />
+                  <UpdateRow key={`${b.createdAt}_${i}`} b={b} names={members.map((m) => m.name)} />
                 ))}
               </View>
             )}

@@ -131,6 +131,7 @@ export default function Agenda() {
                       return (
                         <SwapCard
                           swap={open}
+                          names={members.map((m) => m.name)}
                           mine={open.requesterUid === uid}
                           showRide={false}
                           onCancel={() => cancelSwap(id, key)}
