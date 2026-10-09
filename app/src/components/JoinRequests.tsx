@@ -1,15 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useSession } from '@/lib/session';
 import { View } from 'react-native';
 import { UserPlus } from 'lucide-react-native';
-import { decideJoin } from '@/lib/data';
+import { Circle, decideJoin, isOrganizer } from '@/lib/data';
 import { usePendingRequests } from '@/lib/useJoinRequests';
 import { Avatar, Body, Button, Card, ErrorNote, Heading, Small } from '@/components/ui';
 import { colors, space } from '@/theme';
 
-// For the person who started a circle: the people holding the invite link who are waiting to be let in.
-// Shows nothing when nobody is waiting.
-export default function JoinRequests({ circleId, circleName, isStarter }: { circleId: string; circleName?: string; isStarter: boolean }) {
-  const rows = usePendingRequests(circleId, isStarter);
+// For an organizer (the starter or a co-organizer): the people holding the invite link who are waiting to be
+// let in. Shows nothing when nobody is waiting, or when you are not an organizer of this circle.
+export default function JoinRequests({ circleId, circleName }: { circleId: string; circleName?: string }) {
+  const { uid } = useSession();
+  const [canApprove, setCanApprove] = useState(false);
+  useEffect(
+    () =>
+      onSnapshot(
+        doc(db, 'circles', circleId),
+        (snap) => setCanApprove(snap.exists() && isOrganizer(snap.data() as Circle, uid)),
+        () => setCanApprove(false),
+      ),
+    [circleId, uid],
+  );
+  const rows = usePendingRequests(circleId, canApprove);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (rows.length === 0) return null;

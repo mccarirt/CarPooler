@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Pencil, Plus } from 'lucide-react-native';
-import { archiveCircle, guardiansOf, handOverMember, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
+import { archiveCircle, guardiansOf, handOverMember, syncOrganizerMirror, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
 import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
@@ -23,6 +23,12 @@ export default function CircleDetail() {
   const today = toISO(new Date());
 
   const score = useMemo(() => fairness(legs, rotation, overrides, days, today), [legs, rotation, overrides, days, today]);
+
+  // The starter's phone keeps the live-location database's list of organizers up to date.
+  const organizerKey = (circle?.coOrganizerUids ?? []).join(',');
+  useEffect(() => {
+    if (circle && circle.adminUid === uid && organizerKey) syncOrganizerMirror(id, organizerKey.split(','));
+  }, [circle?.adminUid, uid, organizerKey, id]);
 
   if (circle === undefined)
     return (
@@ -123,7 +129,7 @@ export default function CircleDetail() {
         </Card>
       )}
 
-      <JoinRequests circleId={id} isStarter={circle.adminUid === uid} />
+      <JoinRequests circleId={id} />
 
       <Card onPress={() => router.push(`/circle/${id}/agenda`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <CalendarDays size={24} color={colors.accent} strokeWidth={2} />

@@ -37,8 +37,8 @@ export default function Today() {
           </View>
         </Card>
       )}
-      {(rows ?? []).filter((r) => r.role === 'admin').map((r) => (
-        <JoinRequests key={r.id} circleId={r.id} circleName={r.circleName} isStarter />
+      {(rows ?? []).map((r) => (
+        <JoinRequests key={r.id} circleId={r.id} circleName={r.circleName} />
       ))}
       {rows === null ? (
         <SkeletonCard />

@@ -16,7 +16,7 @@
       "$cid": {
         ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists()",
         "$uid": {
-          ".write": "auth != null && auth.token.email != null && (($uid === auth.uid && (root.child('circleAdmins').child($cid).val() === auth.uid || data.exists() || root.child('circleApprovals').child($cid).child($uid).exists())) || (root.child('circleAdmins').child($cid).val() === auth.uid && !newData.exists()))",
+          ".write": "auth != null && auth.token.email != null && (($uid === auth.uid && (root.child('circleAdmins').child($cid).val() === auth.uid || data.exists() || root.child('circleApprovals').child($cid).child($uid).exists())) || ((root.child('circleAdmins').child($cid).val() === auth.uid || root.child('circleOrganizers').child($cid).child(auth.uid).exists()) && !newData.exists()))",
           ".validate": "newData.hasChild('code')"
         }
       }
@@ -39,7 +39,15 @@
     "circleApprovals": {
       "$cid": {
         "$uid": {
-          ".write": "auth != null && auth.token.email != null && (root.child('circleAdmins').child($cid).val() === auth.uid || ($uid === auth.uid && !newData.exists()))",
+          ".write": "auth != null && auth.token.email != null && ((root.child('circleAdmins').child($cid).val() === auth.uid || root.child('circleOrganizers').child($cid).child(auth.uid).exists()) || ($uid === auth.uid && !newData.exists()))",
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+    "circleOrganizers": {
+      "$cid": {
+        "$uid": {
+          ".write": "auth != null && auth.token.email != null && root.child('circleAdmins').child($cid).val() === auth.uid",
           ".validate": "newData.val() === true"
         }
       }

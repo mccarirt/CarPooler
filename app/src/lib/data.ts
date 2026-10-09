@@ -234,7 +234,16 @@ export const isOrganizer = (circle: Circle, uid: string | null) =>
 export const guardiansOf = (kid: Pick<Kid, 'ownerUid' | 'guardianUids'>) => [...new Set([kid.ownerUid, ...(kid.guardianUids ?? [])])];
 
 export async function setCoOrganizers(circleId: string, uids: string[]) {
+  const before = ((await getDoc(doc(db, 'circles', circleId))).data() as Circle | undefined)?.coOrganizerUids ?? [];
   await updateDoc(doc(db, 'circles', circleId), { coOrganizerUids: uids });
+  // The live-location database cannot see the main one, so it keeps its own copy of who the organizers are.
+  for (const u of uids) await set(ref(rtdb, `circleOrganizers/${circleId}/${u}`), true).catch(() => {});
+  for (const u of before.filter((x) => !uids.includes(x))) await remove(ref(rtdb, `circleOrganizers/${circleId}/${u}`)).catch(() => {});
+}
+
+// Make that copy match, for organizers named before it existed. Safe to repeat. Only the starter's phone can write it.
+export async function syncOrganizerMirror(circleId: string, uids: string[]) {
+  for (const u of uids) await set(ref(rtdb, `circleOrganizers/${circleId}/${u}`), true).catch(() => {});
 }
 
 // Change your name or car everywhere it is shown: your profile and your card in every circle.

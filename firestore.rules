@@ -30,12 +30,6 @@ service cloud.firestore {
         && request.resource.data.driverUid == request.auth.uid;
     }
 
-    // Is the requester the person who STARTED circle `cid`? Only they let new people in.
-    function isStarter(cid) {
-      return signedIn()
-        && get(/databases/$(database)/documents/circles/$(cid)).data.adminUid == request.auth.uid;
-    }
-
     // Is the requester an ORGANIZER of circle `cid`? That is the person who started it, or
     // anyone they have promoted to co-organizer. They must also be a member.
     function isOrganizer(cid) {
@@ -189,19 +183,19 @@ service cloud.firestore {
       }
 
       // Asking to join. An invite link only lets a person ASK: they write a request (with a valid code for
-      // THIS circle), and only the person who started the circle can approve or decline it. A request can
-      // be read by its owner and by the starter, and nobody else. The person can withdraw it, and the
-      // starter can delete it. Once approved it is used up when the person joins (see members below).
+      // THIS circle), and only an organizer (the starter or a co-organizer) can approve or decline it. A
+      // request can be read by its owner and by organizers, and nobody else. The person can withdraw it, and
+      // an organizer can delete it. Once approved it is used up when the person joins (see members below).
       match /requests/{uid} {
-        allow read: if signedIn() && (request.auth.uid == uid || isStarter(cid));
+        allow read: if signedIn() && (request.auth.uid == uid || isOrganizer(cid));
         allow create: if hasEmail() && request.auth.uid == uid
           && request.resource.data.uid == uid
           && request.resource.data.status == 'pending'
           && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.circleId == cid;
-        allow update: if isStarter(cid)
+        allow update: if isOrganizer(cid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           && request.resource.data.status in ['approved', 'declined'];
-        allow delete: if signedIn() && (request.auth.uid == uid || isStarter(cid));
+        allow delete: if signedIn() && (request.auth.uid == uid || isOrganizer(cid));
       }
 
       match /members/{uid} {
