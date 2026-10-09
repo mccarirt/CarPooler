@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { onValue, ref } from 'firebase/database';
 import { Car, ChevronLeft, Navigation } from 'lucide-react-native';
 import { rtdb } from '@/lib/firebase';
-import { acceptSwap, cancelSwap, clearPosition, ensureRealtimeAccess, isOrganizer, livePath, patchRun, publishPosition, logRun, requestSwap, runKey, saveOverride, sendBroadcast, startRun } from '@/lib/data';
+import { acceptSwap, cancelSwap, clearPosition, reassignDriver, ensureRealtimeAccess, isOrganizer, livePath, patchRun, publishPosition, logRun, requestSwap, runKey, saveOverride, sendBroadcast, startRun } from '@/lib/data';
 import { newestFirst, type BroadcastType } from '@/lib/social';
 import { fetchRoute, fmtDistance, haversine, nearestIndex, pointAt, Route } from '@/lib/geo';
 import { afterConfirm, initialKids, kidActions, kidIdsOf, KidState, Live, PHASES, phaseOf, primaryAction } from '@/lib/ride';
@@ -43,6 +43,7 @@ export default function RideDay() {
   const [lateOpen, setLateOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [fixOpen, setFixOpen] = useState(false);
+  const [whoOpen, setWhoOpen] = useState(false);
   const [fixKids, setFixKids] = useState<Record<string, KidState>>({});
   const [fixError, setFixError] = useState<string | null>(null);
   const [farArmed, setFarArmed] = useState(false); // first tap when far from the stop only arms the button
@@ -511,6 +512,39 @@ export default function RideDay() {
                 );
               })}
             </View>
+
+            {!!circle && !!run && isOrganizer(circle, uid) && (
+              <View style={{ gap: space.sm }}>
+                {!whoOpen ? (
+                  <Button variant="secondary" label="Change who drove" onPress={() => setWhoOpen(true)} />
+                ) : (
+                  <Card style={{ gap: space.sm }}>
+                    <Heading>Who drove this one?</Heading>
+                    <Small>Use this if the wrong parent started the ride. The record moves to the person you pick.</Small>
+                    <Wrap>
+                      {members.map((m) => (
+                        <Chip
+                          key={m.uid}
+                          label={m.name}
+                          on={run.driverUid === m.uid}
+                          onPress={async () => {
+                            if (busy || run.driverUid === m.uid) return;
+                            setBusy(true);
+                            try {
+                              await reassignDriver(id, key, m.uid);
+                              setWhoOpen(false);
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        />
+                      ))}
+                    </Wrap>
+                    <Button variant="ghost" label="Cancel" onPress={() => setWhoOpen(false)} disabled={busy} />
+                  </Card>
+                )}
+              </View>
+            )}
 
             {canFix && (
               <View style={{ gap: space.sm }}>

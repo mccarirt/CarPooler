@@ -464,3 +464,10 @@ export async function decideJoin(circleId: string, requestUid: string, approve: 
 export async function archiveCircle(circleId: string, archived: boolean) {
   await updateDoc(doc(db, 'circles', circleId), { archived });
 }
+
+// An organizer corrects who drove a ride that has a record (for example when the wrong parent tapped Start).
+// The old driver's live position is cleared so the right driver's phone can take over.
+export async function reassignDriver(circleId: string, key: string, newDriverUid: string) {
+  await updateDoc(doc(db, 'circles', circleId, 'runs', key), { driverUid: newDriverUid });
+  await remove(ref(rtdb, livePath(circleId, key))).catch(() => {});
+}

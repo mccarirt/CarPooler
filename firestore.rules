@@ -167,14 +167,17 @@ service cloud.firestore {
       }
       // A ride happening on a particular day (started, which stop, which kids are
       // picked up). Any member can see it. Whoever starts it becomes its driver, and
-      // from then on only that driver (or an organizer, to correct it) can change it. Nobody can delete one.
+      // from then on only that driver (or an organizer, to correct it) can change it. The driver cannot hand the
+      // ride to someone else, but an organizer can correct who the driver was. Nobody can delete one.
       match /runs/{key} {
         allow read: if isMember(cid);
         allow create: if isMember(cid) && request.resource.data.driverUid == request.auth.uid;
-        // The driver can update their own ride, and an organizer can correct any ride afterward
-        // (for example fixing what was recorded for a child). Nobody can change who the driver was.
-        allow update: if isMember(cid) && (resource.data.driverUid == request.auth.uid || isOrganizer(cid))
-          && request.resource.data.driverUid == resource.data.driverUid;
+        // The driver can update their own ride but cannot change who the driver is. An organizer can correct
+        // any ride afterward: what was recorded for a child, or who actually drove.
+        allow update: if isMember(cid) && (
+          (resource.data.driverUid == request.auth.uid && request.resource.data.driverUid == resource.data.driverUid)
+          || isOrganizer(cid)
+        );
         allow delete: if false;
       }
       match /days/{date} {

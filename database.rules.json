@@ -25,7 +25,7 @@
       "$cid": {
         "$run": {
           ".read": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists()",
-          ".write": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists() && (!data.exists() || data.child('driverUid').val() === auth.uid) && (!newData.exists() || newData.child('driverUid').val() === auth.uid)",
+          ".write": "auth != null && root.child('circleMembers').child($cid).child(auth.uid).exists() && (((!data.exists() || data.child('driverUid').val() === auth.uid) && (!newData.exists() || newData.child('driverUid').val() === auth.uid)) || ((root.child('circleAdmins').child($cid).val() === auth.uid || root.child('circleOrganizers').child($cid).child(auth.uid).exists()) && !newData.exists()))",
           ".validate": "newData.hasChildren(['driverUid', 'lat', 'lng', 'ts'])",
           "lat": {
             ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
