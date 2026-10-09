@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowUp, CalendarDays, Car, Check, ChevronRight, Link2, Pencil, Plus } from 'lucide-react-native';
-import { guardiansOf, handOverMember, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
+import { archiveCircle, guardiansOf, handOverMember, isOrganizer, PUBLIC_URL, renameCircle, saveRotation, setCoOrganizers } from '@/lib/data';
 import { kidIdsOf } from '@/lib/ride';
 import { useSession } from '@/lib/session';
 import { useCircle } from '@/lib/useCircle';
@@ -113,6 +113,14 @@ export default function CircleDetail() {
             </Pressable>
           )}
         </View>
+      )}
+
+      {circle.archived && (
+        <Card style={{ gap: space.sm, backgroundColor: colors.warnCard, borderColor: colors.warnLine }}>
+          <Heading>This circle is archived</Heading>
+          <Small>It is hidden from everyone's lists. Nothing was deleted.</Small>
+          {circle.adminUid === uid && <Button variant="secondary" label="Restore this circle" onPress={() => archiveCircle(id, false)} />}
+        </Card>
       )}
 
       <JoinRequests circleId={id} isStarter={circle.adminUid === uid} />
@@ -291,6 +299,7 @@ export default function CircleDetail() {
           )}
         </Card>
       ))}
+      {circle.adminUid === uid && !circle.archived && <ArchiveControl circleId={id} />}
     </Screen>
   );
 }
@@ -342,5 +351,33 @@ function HandOver({ circleId, oldUid, oldName, others, today }: { circleId: stri
       <Button label="Hand over" onPress={go} loading={busy} disabled={!target} />
       <Button variant="ghost" label="Never mind" onPress={() => setOpen(false)} disabled={busy} />
     </View>
+  );
+}
+
+// Starter only. Two taps, so it is never done by accident, and it is fully reversible.
+function ArchiveControl({ circleId }: { circleId: string }) {
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function go() {
+    setBusy(true);
+    setError(null);
+    try {
+      await archiveCircle(circleId, true);
+      router.replace('/circles');
+    } catch {
+      setError('Could not archive it. Try again in a moment.');
+      setBusy(false);
+    }
+  }
+  if (!sure) return <Button variant="ghost" label="Archive this circle" onPress={() => setSure(true)} />;
+  return (
+    <Card style={{ gap: space.sm }}>
+      <Heading>Archive this circle?</Heading>
+      <Small>It disappears from every family's lists, and rides stop showing on Today and Week. Nothing is deleted. You can restore it from Circles any time.</Small>
+      <ErrorNote message={error} />
+      <Button variant="danger" label="Yes, archive it" onPress={go} loading={busy} />
+      <Button variant="ghost" label="Never mind" onPress={() => setSure(false)} disabled={busy} />
+    </Card>
   );
 }

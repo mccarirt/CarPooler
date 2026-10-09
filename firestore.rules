@@ -90,14 +90,14 @@ service cloud.firestore {
       // Anyone can start a circle, but only as its organizer.
       allow create: if hasEmail() && request.resource.data.adminUid == request.auth.uid;
       // Editing the circle:
-      //  - The person who started it can change its name, the driving order, and who the
+      //  - The person who started it can change its name, the driving order, archive or restore it, and who the
       //    co-organizers are. They can't hand the circle to someone else or change the
       //    invite code.
       //  - A co-organizer can change the name and the driving order, but can NOT promote
       //    or demote other organizers.
       allow update: if signedIn() && (
         (resource.data.adminUid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation', 'coOrganizerUids']))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation', 'coOrganizerUids', 'archived']))
         ||
         (('coOrganizerUids' in resource.data && request.auth.uid in resource.data.coOrganizerUids)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'rotation']))

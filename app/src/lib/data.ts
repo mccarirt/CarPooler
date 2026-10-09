@@ -21,7 +21,7 @@ export type Place = { label: string; address: string; lat: number; lng: number }
 export type Profile = { name: string; car: string; color?: string; icon?: string; household?: string[]; places?: Place[] };
 export type Membership = { circleName: string; role: 'admin' | 'member' };
 export type Member = { uid: string; name: string; car: string; role: 'admin' | 'member'; color?: string; icon?: string };
-export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[] };
+export type Circle = { name: string; adminUid: string; inviteCode: string; rotation?: string[]; coOrganizerUids?: string[]; archived?: boolean };
 export type Kid = {
   name: string;
   notes: string;
@@ -448,4 +448,10 @@ export async function requestToJoin(circleId: string, code: string, profile: Pro
 export async function decideJoin(circleId: string, requestUid: string, approve: boolean) {
   if (approve) await set(ref(rtdb, `circleApprovals/${circleId}/${requestUid}`), true);
   await updateDoc(doc(db, 'circles', circleId, 'requests', requestUid), { status: approve ? 'approved' : 'declined' });
+}
+
+// Archive a circle: it disappears from everyone's lists and nothing is deleted. Only the person who started
+// it can archive or restore it.
+export async function archiveCircle(circleId: string, archived: boolean) {
+  await updateDoc(doc(db, 'circles', circleId), { archived });
 }

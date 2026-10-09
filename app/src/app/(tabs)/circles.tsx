@@ -2,13 +2,14 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronRight, Plus, Users } from 'lucide-react-native';
 import { useCircleName } from '@/lib/useCircleName';
-import { useMemberships } from '@/lib/useMemberships';
+import { useArchivedCircles, useMemberships } from '@/lib/useMemberships';
 import { Button, Card, EmptyState, Heading, Screen, SkeletonCard, Small, Title } from '@/components/ui';
 import { colors, space } from '@/theme';
 
 // Circles: who I am driving with.
 export default function Circles() {
   const rows = useMemberships();
+  const archived = useArchivedCircles();
 
   return (
     <Screen tab footer={<Button label="Start a circle" icon={<Plus size={22} color={colors.onAccent} strokeWidth={2.5} />} onPress={() => router.push('/circle/new')} />}>
@@ -32,6 +33,21 @@ export default function Circles() {
             <ChevronRight size={22} color={colors.inkSoft} />
           </Card>
         ))
+      )}
+      {archived.length > 0 && (
+        <>
+          <Heading>Archived</Heading>
+          <Small>Hidden from everyone. Open one to bring it back.</Small>
+          {archived.map((r) => (
+            <Card key={r.id} onPress={() => router.push(`/circle/${r.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, opacity: 0.7 }}>
+              <View style={{ flex: 1 }}>
+                <CircleTitle id={r.id} fallback={r.circleName} />
+                <Small>Archived</Small>
+              </View>
+              <ChevronRight size={22} color={colors.inkSoft} />
+            </Card>
+          ))}
+        </>
       )}
     </Screen>
   );
