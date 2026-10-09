@@ -94,6 +94,35 @@ export default function RideDay() {
   runRef.current = run;
   const liveRef = useRef(live);
   liveRef.current = live;
+
+  // ---- a driver who leaves the planned route ----
+  // The planned route is drawn once, between stops. When a real ride's car is clearly off it (more than 250 m),
+  // everyone watching gets a new route from where the car is now to the next stop, refreshed every 20 seconds
+  // while it stays off. Back on the planned route, the planned line returns.
+  const [detour, setDetour] = useState<Route | null>(null);
+  const detourAt = useRef(0);
+  const detourSeq = useRef(0);
+  useEffect(() => {
+    const seq = ++detourSeq.current; // a late answer for an old position is dropped
+    if (!leg || !run || run.status !== 'started' || run.simulated || run.arrived || !live || !route) return setDetour(null);
+    const next = leg.stops[Math.min(run.stopIndex, leg.stops.length - 1)];
+    if (!next || next.lat === undefined) return setDetour(null);
+    const here = { lat: live.lat, lng: live.lng };
+    const i = nearestIndex(route.coords, here);
+    if (haversine(here, { lat: route.coords[i][0], lng: route.coords[i][1] }) <= 250) return setDetour(null);
+    if (Date.now() - detourAt.current < 20000) return;
+    detourAt.current = Date.now();
+    const rest = leg.stops.slice(run.stopIndex).filter((x) => x.lat !== undefined && x.lng !== undefined).map((x) => ({ lat: x.lat!, lng: x.lng! }));
+    fetchRoute([here, ...rest]).then((r) => {
+      if (seq === detourSeq.current && r) setDetour(r);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live?.lat, live?.lng, run?.stopIndex, run?.arrived, run?.status, run?.simulated, route]);
+  // The detour line starts at the car, not where it was 20 seconds ago.
+  const detourLine = useMemo(() => {
+    if (!detour || !live) return null;
+    return detour.coords.slice(nearestIndex(detour.coords, { lat: live.lat, lng: live.lng }));
+  }, [detour, live?.lat, live?.lng]);
   const active = isDriver && run?.status === 'started' && !!uid;
   useEffect(() => {
     if (!active || !uid || !leg) return;
@@ -162,8 +191,13 @@ export default function RideDay() {
       const ahead = route.cum[route.stopIdx[stopIndex]] - route.cum[i];
       remaining = !offRoute && ahead >= -50 ? Math.max(0, ahead) : straight;
     } else remaining = straight;
+    if (detour && !run?.simulated) {
+      // Off the planned route: measure along the new route to the next stop (point 1 of it; point 0 is the car).
+      remaining = Math.max(0, detour.cum[detour.stopIdx[1]] - detour.cum[nearestIndex(detour.coords, pos)]);
+    }
   }
-  const avgSpeed = (route ? route.totalDist / route.totalDur : 9) * (run?.simulated ? SIM_SPEEDUP : 1); // m/s
+  const speedRoute = detour && !run?.simulated ? detour : route;
+  const avgSpeed = (speedRoute ? speedRoute.totalDist / speedRoute.totalDur : 9) * (run?.simulated ? SIM_SPEEDUP : 1); // m/s
   const etaSec = remaining !== null ? remaining / avgSpeed : null;
   const etaMs = etaSec !== null ? Date.now() + etaSec * 1000 : null;
   const nearNext = remaining !== null && remaining < 250;
@@ -348,7 +382,7 @@ export default function RideDay() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* ---------- map ---------- */}
       <View style={{ flex: 1, minHeight: 220 }}>
-        <Map stops={mapStops} route={route?.coords ?? null} car={started && live ? { lat: live.lat, lng: live.lng } : null} routeColor={colorFor(driverUid ?? 'x', driver?.color).fg} carIcon={driver?.icon} />
+        <Map stops={mapStops} route={detourLine ?? route?.coords ?? null} car={started && live ? { lat: live.lat, lng: live.lng } : null} routeColor={colorFor(driverUid ?? 'x', driver?.color).fg} carIcon={driver?.icon} />
         {mapStops.length === 0 && (
           <View style={{ position: 'absolute', left: space.md, right: space.md, top: 72, backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md }}>
             <Small>{stops.some((x) => x.address && x.lat === undefined) ? "This ride's addresses are saved but could not be placed on the map. An organizer can open the ride and tap Find on map for each stop." : "No map yet: this ride's stops have no addresses. An organizer can add them in the ride's settings."}</Small>
